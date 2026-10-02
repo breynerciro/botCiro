@@ -38,6 +38,7 @@ const CONFIG_INICIAL = [
   ['IMPORTANTES_TRABAJO', '', 'Correos o dominios (clientes, jefe) que siempre generan aviso + pendiente'],
   ['AVISAR_DIRECTOS_TRABAJO', 'si', 'Avisar correos de trabajo que alguien de tu dominio te envía directamente'],
   ['JIRA_JQL', 'assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC', 'Consulta de Jira para tus actividades'],
+  ['JIRA_ESTADOS', 'En curso, In Progress', 'Solo los issues en estos estados de Jira se vuelven pendientes ("todos" = todos los abiertos)'],
   ['TASA_USD', '4100', 'Respaldo: pesos por 1 USD solo si no se puede leer la tasa real de GOOGLEFINANCE("USD/COP")'],
   ['AVISO_VENCIMIENTOS', 'si', 'Avisar cuando un pendiente vence hoy o está vencido'],
   ['DIAS_RETENCION_CORREOS', '60', 'Días que se conservan los correos analizados (los viejos se archivan)'],

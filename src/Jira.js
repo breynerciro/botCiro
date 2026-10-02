@@ -2,11 +2,12 @@
  * Actividades asignadas en Jira Cloud → pendientes del perfil trabajo.
  *
  * Script Properties: JIRA_SITIO (miempresa.atlassian.net), JIRA_CORREO, JIRA_TOKEN
- * (token en https://id.atlassian.com/manage-profile/security/api-tokens). Config: JIRA_JQL.
+ * (token en https://id.atlassian.com/manage-profile/security/api-tokens). Config: JIRA_JQL, JIRA_ESTADOS.
+ * Solo la API: los correos de notificación de Jira se descartan en el clasificador.
  *
- *   Issue asignado y abierto    → pendiente nuevo + aviso
- *   Issue resuelto o reasignado → el pendiente se cierra + aviso
- *   /hecho en el bot            → se cierra aquí y no se recrea mientras el issue siga abierto
+ *   Issue asignado y en curso                       → pendiente nuevo + aviso
+ *   Sale de "En curso", se resuelve o se reasigna   → el pendiente se cierra + aviso
+ *   /hecho en el bot                                → se cierra aquí y no se recrea mientras siga en curso
  */
 
 const JQL_POR_DEFECTO_ = 'assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC';
@@ -42,7 +43,22 @@ function consultarJira_() {
     resumen: (i.fields && i.fields.summary) || '',
     prioridad: (i.fields && i.fields.priority && i.fields.priority.name) || '',
     vence: (i.fields && i.fields.duedate) || null,
+    estado: (i.fields && i.fields.status && i.fields.status.name) || '',
   }));
+}
+
+/**
+ * Solo los issues en los estados de Config JIRA_ESTADOS se vuelven pendientes ("todos" = sin filtro).
+ * Se filtra aquí y no en el JQL: un estado mal escrito en el JQL rompe la consulta,
+ * y Jira devuelve el nombre traducido según el idioma ("En curso" / "In Progress").
+ */
+function filtrarPorEstado_(issues) {
+  const estados = String(getConfig_('JIRA_ESTADOS', 'En curso, In Progress'))
+    .split(',')
+    .map((e) => normalizar_(e))
+    .filter(Boolean);
+  if (estados.indexOf('todos') >= 0) return issues;
+  return issues.filter((i) => estados.indexOf(normalizar_(i.estado)) >= 0);
 }
 
 function fechaJira_(s) {
@@ -104,11 +120,11 @@ function enlaceJira_(clave) {
 
 function escanearJira_() {
   if (!jiraConfigurado_()) return null;
-  const res = sincronizarJira_(consultarJira_());
+  const res = sincronizarJira_(filtrarPorEstado_(consultarJira_()));
   const partes = [];
   if (res.nuevos.length) {
     partes.push(
-      '🎫 <b>Jira: asignado a ti</b>\n' +
+      '🎫 <b>Jira: en curso</b>\n' +
         res.nuevos
           .map((t) => {
             const vence = t.fecha_limite ? ` · vence ${fmtDia_(t.fecha_limite)}` : '';
@@ -119,7 +135,7 @@ function escanearJira_() {
     );
   }
   if (res.cerrados.length) {
-    partes.push('✔️ Cerrados en Jira: ' + res.cerrados.map((t) => `#${t.id} ${esc_(t.ref)}`).join(', '));
+    partes.push('✔️ Ya no están en curso en Jira: ' + res.cerrados.map((t) => `#${t.id} ${esc_(t.ref)}`).join(', '));
   }
   if (partes.length && hayChats_()) enviar_(partes.join('\n\n'));
   return res;
