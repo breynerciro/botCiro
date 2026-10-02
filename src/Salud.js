@@ -68,7 +68,7 @@ function estadoSistema_() {
 
   lineas.push('• Triggers: ' + (d.triggers.length ? d.triggers.join(', ') : '<b>ninguno</b> ⚠️'));
 
-  const ultimaSync = PERFILES.map((p) => {
+  const ultimaSync = PERFILES.filter((p) => fuenteCalendario_(p) === 'satelite').map((p) => {
     const t = Number(prop_('SYNC_ULTIMA_' + p) || 0);
     if (!t) return `${p}: sin sync`;
     return `${p}: hace ${Math.round((ahora - t) / 60000)} min`;
