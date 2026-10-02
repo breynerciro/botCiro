@@ -33,7 +33,11 @@ function reemplazar(texto, antes, despues, archivo) {
 /** Cambios de un archivo de src/ para el build de biblioteca (también lo usan los tests). */
 function transformar(f, s, numero) {
   if (f === 'Contexto.js') s = reemplazar(s, 'const MODO_BIBLIOTECA_ = false;', 'const MODO_BIBLIOTECA_ = true;', f);
-  if (f === 'Version.js') s = reemplazar(s, 'const NUMERO_BIBLIOTECA = 0;', `const NUMERO_BIBLIOTECA = ${numero};`, f);
+  if (f === 'Version.js') {
+    s = reemplazar(s, 'const NUMERO_BIBLIOTECA = 0;', `const NUMERO_BIBLIOTECA = ${numero};`, f);
+    const satelite = leerConfig().sateliteHojaId;
+    if (satelite) s = reemplazar(s, "const URL_PLANTILLA_SATELITE = '';", `const URL_PLANTILLA_SATELITE = 'https://docs.google.com/spreadsheets/d/${satelite}/copy';`, f);
+  }
   if (f === 'appsscript.json') {
     const m = JSON.parse(s);
     delete m.webapp; // la app web es de cada copia, no de la biblioteca

@@ -102,8 +102,9 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
       fetch: (url, opts) => {
         const respuesta = (codigo, cuerpo) => ({ getResponseCode: () => codigo, getContentText: () => JSON.stringify(cuerpo) });
         if (url.includes('generativelanguage.googleapis.com')) {
-          llamadas.gemini.push(JSON.parse(opts.payload));
-          const r = gemini(JSON.parse(opts.payload));
+          const cuerpo = opts.payload ? JSON.parse(opts.payload) : { metodo: 'GET', url: url };
+          llamadas.gemini.push(cuerpo);
+          const r = gemini(cuerpo);
           return respuesta(r.codigo, r.cuerpo);
         }
         if (url.includes('atlassian.net')) {

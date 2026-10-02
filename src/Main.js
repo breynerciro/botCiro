@@ -55,7 +55,13 @@ function procesarUpdate_(update) {
   let respuesta;
   try {
     CHAT_ACTUAL_ = chatId;
-    respuesta = conBloqueo_(() => responder_(msg.text));
+    respuesta = conBloqueo_(() => {
+      // /configurar puede estar esperando un dato (API key, últimos 4…). Un comando cancela la espera.
+      const espera = espera_(chatId);
+      if (espera && msg.text.trim().charAt(0) !== '/') return recibirEspera_(espera, msg);
+      if (espera) cancelarEspera_(chatId);
+      return responder_(msg.text);
+    });
   } catch (err) {
     registrarError_('comando', err);
     respuesta = '⚠️ ' + esc_(err.message);
@@ -88,6 +94,7 @@ function enviarRespuesta_(r, chatId) {
  * Botones inline: cerrar pendiente (#id), ejecutar un comando o dar feedback del análisis.
  *   hecho:3   → cierra el pendiente #3
  *   cmd:p     → ejecuta /p (lista de pendientes) y la manda al chat
+ *   cfg:ia    → sección de /configurar (edita el mismo mensaje)
  *   mov:ab12:3 → registra el gasto/ingreso en borrador ab12 en la cuenta 3
  *   fb:ok:12  → el correo 12 estaba bien clasificado (fb:mal = mal clasificado)
  */
@@ -95,9 +102,14 @@ function procesarCallback_(cb) {
   const chatId = String((cb.message && cb.message.chat && cb.message.chat.id) || '');
   const datos = String(cb.data || '');
   if (chats_().indexOf(chatId) < 0) return responderCallback_(cb.id, '⚠️ Chat no autorizado.');
+  CHAT_ACTUAL_ = chatId;
   let texto = '';
   try {
-    if (datos.indexOf('hecho:') === 0) {
+    if (datos.indexOf('cfg:') === 0) {
+      const r = conBloqueo_(() => accionConfigurar_(datos.slice(4), chatId));
+      if (cb.message && cb.message.message_id) editarMensaje_(chatId, cb.message.message_id, r.texto, r.teclado);
+      else enviarRespuesta_(r, chatId);
+    } else if (datos.indexOf('hecho:') === 0) {
       texto = conBloqueo_(() => completarTarea_(datos.slice(6)));
     } else if (datos.indexOf('cmd:') === 0) {
       const nombre = datos.slice(4).replace(/[^a-z]/g, '');

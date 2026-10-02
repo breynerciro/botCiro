@@ -16,6 +16,8 @@ function nombreCuenta_(c) {
 function buscarCuenta_(token, perfil, cuentas) {
   const t = normalizar_(token);
   const lista = (cuentas || leer_('Cuentas')).filter((c) => !perfil || c.perfil === perfil);
+  const id = /^id:(\d+)$/.exec(t); // así guarda /configurar la cuenta por defecto (alias como "ahorros" se repiten)
+  if (id) return lista.find((c) => String(c.id) === id[1]) || null;
   return (
     lista.find((c) => normalizar_(c.alias) === t) ||
     lista.find((c) => ultimos4_(c.ultimos4) === t) ||
@@ -139,18 +141,24 @@ function crearCuenta_(args, perfil) {
   let ult = '';
   if (tokens.length && /^\d{4}$/.test(tokens[0])) ult = tokens.shift();
   const m = parseMonto_(tokens.join(' '));
+  const cuenta = crearCuentaDatos_({ perfil: perfil, banco: banco, alias: alias, ultimos4: ult, saldo: m ? m.monto : 0 });
+  return `🏦 Cuenta creada: <b>${esc_(nombreCuenta_(cuenta))}</b> (${perfil}) con saldo ${formatCOP_(cuenta.saldo_base)}`;
+}
+
+/** Crea la fila de una cuenta. Las tarjetas de crédito guardan la deuda como saldo negativo. */
+function crearCuentaDatos_(d) {
   const cuentas = leer_('Cuentas');
   const cuenta = {
     id: siguienteId_('Cuentas', cuentas),
-    perfil: perfil,
-    banco: banco.charAt(0).toUpperCase() + banco.slice(1),
-    alias: alias,
-    ultimos4: ult,
-    saldo_base: m ? m.monto : 0,
+    perfil: d.perfil,
+    banco: String(d.banco).charAt(0).toUpperCase() + String(d.banco).slice(1),
+    alias: d.alias || d.banco,
+    ultimos4: d.ultimos4 || '',
+    saldo_base: Number(d.saldo) || 0,
     fecha_base: new Date(),
   };
   agregar_('Cuentas', cuenta);
-  return `🏦 Cuenta creada: <b>${esc_(nombreCuenta_(cuenta))}</b> (${perfil}) con saldo ${formatCOP_(cuenta.saldo_base)}`;
+  return cuenta;
 }
 
 /** /ajustar nu 500000 → fija el saldo real desde ahora (conciliación). */

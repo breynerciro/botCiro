@@ -92,7 +92,11 @@ test('agenda y resumen', () => {
   assert.match(env.decir('/agenda trabajo'), /satélite de trabajo aún no ha sincronizado/);
   env.decir('/tarea revisar demurrage hoy');
   const resumen = env.decir('/resumen');
-  assert.match(resumen, /PERSONAL[\s\S]*Comité comercial[\s\S]*demurrage[\s\S]*TRABAJO/);
+  assert.match(resumen, /PERSONAL[\s\S]*Comité comercial[\s\S]*demurrage/);
+  assert.doesNotMatch(resumen, /TRABAJO/, 'sin nada de trabajo, el perfil no aparece');
+
+  env.decir('/nuevacuenta trabajo bancolombia corriente 9876 0');
+  assert.match(env.decir('/resumen'), /PERSONAL[\s\S]*TRABAJO/, 'con una cuenta de trabajo, sí');
 });
 
 test('escaneo de correos bancarios sin duplicar', () => {

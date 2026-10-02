@@ -52,11 +52,11 @@ const ESQUEMA_CONVERSACION_ = {
 const HERRAMIENTAS_IA_ = {
   saldo: {
     desc: 'Saldos estimados de todas las cuentas. argumentos: perfil ("personal" | "trabajo" | vacío = ambos)',
-    ejecutar: (x) => listarSaldos_(x.perfil ? [perfilONulo_(x.perfil)] : PERFILES),
+    ejecutar: (x) => listarSaldos_(x.perfil ? [perfilONulo_(x.perfil)] : perfilesActivos_()),
   },
   resumen: {
     desc: 'Resumen del día: saldos, reuniones de hoy y pendientes de ambos perfiles. Sin argumentos.',
-    ejecutar: () => armarResumen_(PERFILES),
+    ejecutar: () => armarResumen_(perfilesActivos_()),
   },
   agenda: {
     desc: 'Reuniones del calendario. argumentos: perfil ("personal"|"trabajo"), rango ("hoy"|"manana"|"semana")',
@@ -64,7 +64,7 @@ const HERRAMIENTAS_IA_ = {
   },
   pendientes: {
     desc: 'Lista de pendientes abiertos. argumentos: perfil (vacío = ambos)',
-    ejecutar: (x) => listarPendientes_(x.perfil ? [perfilONulo_(x.perfil)] : PERFILES),
+    ejecutar: (x) => listarPendientes_(x.perfil ? [perfilONulo_(x.perfil)] : perfilesActivos_()),
   },
   crear_tarea: {
     desc: 'Crea un pendiente nuevo. argumentos: texto (qué hay que hacer, sin la fecha), perfil, fecha ("lunes", "15/10", "mañana"), hora ("10:00")',
@@ -138,7 +138,7 @@ function contextoConversacion_() {
   const hoy = inicioDia_(new Date());
   const lineas = [];
 
-  const cuentasTxt = PERFILES.map((p) => {
+  const cuentasTxt = perfilesActivos_().map((p) => {
     const l = lineasSaldos_(p, cuentas, movimientos);
     return l.length ? `${p}: ${l.map((s) => s.replace(/<[^>]+>/g, '')).join('; ')}` : '';
   }).filter(Boolean);
@@ -155,7 +155,7 @@ function contextoConversacion_() {
   );
   if (lista.length) lineas.push('Lista: ' + lista.join('; '));
 
-  const agenda = PERFILES.map((p) => {
+  const agenda = perfilesActivos_().map((p) => {
     const evs = eventosPerfil_(p, hoy, sumarDias_(hoy, 2)) || [];
     return evs.slice(0, 5).map((e) => `${p} ${fmtFecha_(e.inicio, 'dd/MM HH:mm')} ${e.titulo}`).join('; ');
   }).filter(Boolean);

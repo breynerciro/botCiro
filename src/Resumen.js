@@ -41,7 +41,7 @@ function armarResumen_(perfiles) {
 /** Trigger diario. */
 function enviarResumenDiario() {
   try {
-    enviar_(armarResumen_(PERFILES));
+    enviar_(armarResumen_(perfilesActivos_()));
   } catch (err) {
     registrarError_('enviarResumenDiario', err);
   }

@@ -87,5 +87,5 @@ function estadoWebhook() {
 
 /** Prueba rápida desde el editor: manda el resumen ahora. */
 function probarResumen() {
-  enviar_(armarResumen_(PERFILES));
+  enviar_(armarResumen_(perfilesActivos_()));
 }
