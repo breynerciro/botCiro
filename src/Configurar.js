@@ -15,7 +15,6 @@ const PREFERENCIAS_ = [
   { clave: 'MINUTOS_RECORDATORIO', tipo: 'numero', nombre: 'Aviso antes de cada reunión (min)' },
   { clave: 'AVISO_VENCIMIENTOS', tipo: 'sino', nombre: 'Avisar pendientes que vencen' },
   { clave: 'DURACION_REUNION', tipo: 'numero', nombre: 'Duración de reuniones que creo (min)' },
-  { clave: 'DESVIACION_GASTOS', tipo: 'numero', nombre: 'Alerta si los gastos suben más de (%)' },
 ];
 
 const boton_ = (text, accion) => ({ text: text, callback_data: 'cfg:' + accion });

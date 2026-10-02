@@ -68,7 +68,7 @@ test('reglas + Gemini: pendientes, avisos, resumen y cuerpo borrado', () => {
 
   const correos = env.decir('/correos');
   assert.match(correos, /💳 Extractos \(1\)[\s\S]*🔁 Suscripciones y cobros \(1\)[\s\S]*\$44\.900/);
-  assert.match(env.decir('/resumen'), /📬 <b>Correos \(24 h\)<\/b>[\s\S]*📰 Boletines \(1\)/);
+  assert.doesNotMatch(env.decir('/resumen'), /Correos \(24 h\)/, 'los correos ya no van en el resumen; se ven con /correos');
 
   // Una respuesta en el mismo hilo no duplica el pendiente.
   bandeja.push({ id: 'm6', hilo: 'h1', de: 'María <maria@gmail.com>', asunto: 'RE: Arriendo noviembre', cuerpo: 'arriendo, ¿me confirmas?', fecha: enMinutos(2) });

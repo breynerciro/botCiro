@@ -132,24 +132,6 @@ function cmdInforme_(args, perfil) {
   return bloques.join('\n\n');
 }
 
-/**
- * Línea de desviación de gastos para el resumen diario:
- * compara los últimos 30 días con los 30 anteriores.
- */
-function lineaDesviacionGastos_() {
-  const ahora = Date.now();
-  const gastos = movimientosEnRango_(PERFILES, ahora - 30 * 86400000, ahora, true);
-  if (gastos.length < 2) return '';
-  const anteriores = movimientosEnRango_(PERFILES, ahora - 60 * 86400000, ahora - 30 * 86400000, true);
-  const total = total_(gastos);
-  const totalAnt = total_(anteriores);
-  if (!totalAnt) return `💸 Gastos (30 d): <b>${formatCOP_(total)}</b>`;
-  const dif = Math.round(((total - totalAnt) / totalAnt) * 100);
-  const umbral = Number(getConfig_('DESVIACION_GASTOS', '25')) || 25;
-  const aviso = dif > umbral ? ` ⚠️ <b>+${dif}%</b> respecto a los 30 días anteriores` : ` (${dif >= 0 ? '+' : ''}${dif}%)`;
-  return `💸 Gastos (30 d): <b>${formatCOP_(total)}</b>${aviso}`;
-}
-
 /** /metricas: qué tan acertado ha sido el análisis de correos según tus 👍👎. */
 function cmdMetricas_() {
   const desde = Date.now() - 30 * 86400000;

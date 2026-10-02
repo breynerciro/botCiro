@@ -186,8 +186,8 @@ test('/informe agrupa gastos por categoría y compara con el mes anterior', () =
   assert.match(inf, /Gastos: <b>\$65\.000<\/b>/);
   assert.match(inf, /Ingresos: <b>\$2\.000\.000<\/b>/);
 
-  // El resumen del día compara los últimos 30 días con los previos.
-  assert.match(env.decir('/resumen'), /Gastos \(30 d\): <b>\$65\.000<\/b>/);
+  // El resumen solo trae saldos, reuniones y pendientes: nada de gastos ni correos.
+  assert.doesNotMatch(env.decir('/resumen'), /Gastos \(30 d\)|Correos \(24 h\)/);
 });
 
 test('/metricas mide la precisión según tus 👍👎', () => {

@@ -48,7 +48,6 @@ const CONFIG_INICIAL = [
   ['MAX_FILAS_LOG', '5000', 'Máximo de filas en la pestaña Log'],
   ['DURACION_REUNION', '60', 'Duración por defecto (min) de los eventos creados con /reunion'],
   ['CATEGORIAS_EXTRA', '', 'Palabras clave para categorizar gastos: "taxi=Transporte, domicilio=Alimentos"'],
-  ['DESVIACION_GASTOS', '25', 'Aviso si los gastos de 30 días suben más de este % respecto al mes anterior'],
 ];
 
 function prop_(clave) {
