@@ -50,7 +50,7 @@ function diagnosticar_() {
     alertas.push(`${cola} correo(s) llevan más de 2 h en cola sin analizar.`);
   }
 
-  PERFILES.forEach((p) => {
+  perfilesActivos_().forEach((p) => {
     if (fuenteCalendario_(p) !== 'satelite') return;
     const ultima = Number(prop_('SYNC_ULTIMA_' + p) || 0);
     const minutos = Math.round((ahora - ultima) / 60000);
@@ -65,10 +65,12 @@ function estadoSistema_() {
   const d = diagnosticar_();
   const ahora = Date.now();
   const lineas = ['🩺 <b>Estado del sistema</b>'];
+  const nueva = hayActualizacion_();
+  lineas.push(`• Versión: ${esc_(VERSION)}` + (nueva ? ` · 🆕 disponible ${esc_(nueva.version)} (/actualizar)` : ''));
 
   lineas.push('• Triggers: ' + (d.triggers.length ? d.triggers.join(', ') : '<b>ninguno</b> ⚠️'));
 
-  const ultimaSync = PERFILES.filter((p) => fuenteCalendario_(p) === 'satelite').map((p) => {
+  const ultimaSync = perfilesActivos_().filter((p) => fuenteCalendario_(p) === 'satelite').map((p) => {
     const t = Number(prop_('SYNC_ULTIMA_' + p) || 0);
     if (!t) return `${p}: sin sync`;
     return `${p}: hace ${Math.round((ahora - t) / 60000)} min`;
@@ -147,7 +149,7 @@ function purgarDatos_() {
 /** Copia de seguridad semanal de la hoja de datos (mantiene las últimas N). */
 function backupDatos_() {
   try {
-    const copia = ss_().copy('botCiro · backup ' + fmtFecha_(new Date(), 'yyyy-MM-dd'));
+    const copia = ss_().copy(nombreBot_() + ' · backup ' + fmtFecha_(new Date(), 'yyyy-MM-dd'));
     const maximo = Number(getConfig_('BACKUPS_MAX', '8')) || 8;
     const viejos = JSON.parse(prop_('BACKUPS') || '[]');
     const nuevos = [{ id: copia.getId(), fecha: Date.now(), url: copia.getUrl() }].concat(viejos);

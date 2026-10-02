@@ -5,12 +5,16 @@
   "description": "Asistente personal en Telegram: saldos, agenda y pendientes por perfil (Google Apps Script)",
   "scripts": {
     "test": "TZ=America/Bogota node --test test/*.test.js",
-    "check": "for f in src/*.js satelite/*.js test/*.js; do node --check \"$f\" || exit 1; done",
+    "check": "for f in src/*.js satelite/*.js plantilla/*.js scripts/*.js test/*.js; do node --check \"$f\" || exit 1; done",
     "push": "clasp push --force",
-    "deploy": "clasp push --force && clasp deploy -i ID_DE_TU_IMPLEMENTACION --description botCiro",
+    "deploy": "test -f .deployment-id || { echo \"Falta .deployment-id: pon ahí el ID de tu implementación (clasp deployments)\"; exit 1; } && clasp push --force && clasp deploy -i \"$(cat .deployment-id)\" --description botCiro",
     "satelite:login": "mkdir -p $HOME/.botciro-trabajo && HOME=$HOME/.botciro-trabajo clasp login",
     "satelite:crear": "cd satelite && cp appsscript.json .manifiesto.bak && HOME=$HOME/.botciro-trabajo clasp create --type standalone --title \"botCiro satélite\" --rootDir . ; mv .manifiesto.bak appsscript.json && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp push --force",
     "satelite:push": "cd satelite && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp push --force",
-    "satelite:abrir": "cd satelite && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp open"
+    "satelite:abrir": "cd satelite && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp open",
+    "biblioteca:crear": "node scripts/biblioteca.js crear",
+    "biblioteca:publicar": "npm test && node scripts/biblioteca.js publicar",
+    "plantilla:crear": "node scripts/biblioteca.js plantilla-crear",
+    "satelite:plantilla": "node scripts/biblioteca.js satelite-crear"
   }
 }

@@ -100,6 +100,27 @@ function enviar_(texto, chatId, teclado) {
   });
 }
 
+/** Borra un mensaje (p. ej. el que traía una API key). Si Telegram no deja, se ignora. */
+function borrarMensaje_(chatId, messageId) {
+  try {
+    tg_('deleteMessage', { chat_id: chatId, message_id: messageId });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+/** Reemplaza el texto y los botones de un mensaje (menús de /configurar). Si falla, lo envía nuevo. */
+function editarMensaje_(chatId, messageId, texto, teclado) {
+  try {
+    const payload = { chat_id: chatId, message_id: messageId, text: texto, parse_mode: 'HTML', disable_web_page_preview: true };
+    if (teclado) payload.reply_markup = teclado;
+    tg_('editMessageText', payload);
+  } catch (err) {
+    if (!/not modified/i.test(String(err.message))) enviar_(texto, chatId, teclado);
+  }
+}
+
 /** Contesta al usuario que pulsó un botón (sin HTML: Telegram lo muestra en un toast). */
 function responderCallback_(callbackId, texto) {
   tg_('answerCallbackQuery', {

@@ -1,3 +1,5 @@
 node_modules/
 .clasprc.json
 .env
+build/
+.deployment-id

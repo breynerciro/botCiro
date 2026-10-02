@@ -92,6 +92,25 @@ test('parseTextoLibre_', () => {
   assert.equal(g.parseTextoLibre_('gasté un montón'), null);
 });
 
+test('parseTextoLibre_: gastos escritos de forma natural', () => {
+  const mov = (t, extras) => {
+    const r = plano(g.parseTextoLibre_(t, extras));
+    return r && `${r.tipo} ${r.monto} "${r.descripcion}" ${r.cuenta}${r.cuentaInferida ? ' (inferida)' : ''}`;
+  };
+  assert.equal(mov('compra por nequi 40000'), 'gasto 40000 "compra" nequi (inferida)');
+  assert.equal(mov('40 mil en compra de mercado con la nu'), 'gasto 40000 "mercado" nu (inferida)');
+  assert.equal(mov('almuerzo 25k, pagué con daviplata'), 'gasto 25000 "almuerzo" daviplata (inferida)');
+  assert.equal(mov('transferí 100 mil desde mi cuenta Coopcentral', ['Coopcentral']), 'gasto 100000 "transferencia" coopcentral (inferida)');
+  assert.equal(mov('me consignaron 300 mil en bancolombia'), 'ingreso 300000 "ingreso" bancolombia (inferida)');
+  assert.equal(mov('gasté 50 mil en almuerzo'), 'gasto 50000 "almuerzo" null');
+  // La mención puede ser el comercio: se guarda la descripción completa por si no existe esa cuenta.
+  assert.equal(plano(g.parseTextoLibre_('pagué 35.000 en Rappi')).descripcionCompleta, 'Rappi');
+  // Preguntas y reportes de saldo no son gastos.
+  assert.equal(g.parseTextoLibre_('¿cuánto pagué de 40000 este mes?'), null);
+  assert.equal(g.parseTextoLibre_('tengo 200 mil en nequi y un pago pendiente').tipo, 'saldos');
+  assert.equal(g.parseTextoLibre_('compramos la casa'), null, 'sin monto no es gasto');
+});
+
 function saldos(texto, extras) {
   const r = g.parseTextoLibre_(texto, extras);
   if (!r || r.tipo !== 'saldos') return r;

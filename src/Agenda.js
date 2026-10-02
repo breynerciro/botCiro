@@ -98,7 +98,7 @@ function lineasAgenda_(perfil, rango) {
 
 function cmdAgenda_(args, perfil) {
   const rango = rangoAgenda_(args);
-  const perfiles = perfil ? [perfil] : PERFILES;
+  const perfiles = perfil ? [perfil] : perfilesActivos_();
   const bloques = perfiles.map((p) => {
     const l = lineasAgenda_(p, rango);
     return `<b>${p.toUpperCase()}</b>\n` + (l.length ? l.join('\n') : '<i>Sin reuniones</i>');
@@ -112,8 +112,8 @@ function revisarReuniones() {
     const minutos = Number(getConfig_('MINUTOS_RECORDATORIO', '10')) || 10;
     const ahora = new Date();
     const hasta = new Date(ahora.getTime() + minutos * 60000);
-    const cache = CacheService.getScriptCache();
-    PERFILES.forEach((p) => {
+    const cache = cache_();
+    perfilesActivos_().forEach((p) => {
       (eventosPerfil_(p, ahora, hasta) || []).forEach((ev) => {
         if (ev.todoElDia || ev.inicio < ahora) return;
         const clave = 'rec_' + Utilities.base64EncodeWebSafe(String(ev.id)).slice(0, 200);

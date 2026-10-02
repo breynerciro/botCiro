@@ -88,9 +88,10 @@ test('gasto sin cuenta pregunta en vez de adivinar; /defecto resuelve', () => {
   env.decir('/nc p bancolombia ahorros 1234 200k');
 
   const pregunta = env.decir('/gasto 35000 almuerzo');
-  assert.match(pregunta, /¿A qué cuenta va ese gasto/);
-  assert.match(pregunta, /#nequi/);
-  assert.match(pregunta, /#ahorros/);
+  assert.match(pregunta, /¿De qué cuenta salió −\$35\.000 almuerzo/);
+  const botones = env.enviados[0].reply_markup.inline_keyboard.flat().map((b) => b.text).join(' | ');
+  assert.match(botones, /Nequi \*4321/);
+  assert.match(botones, /Bancolombia ahorros \*1234/);
   assert.equal(env.hojas.Movimientos._filas.length, 1, 'no registró nada a ciegas');
 
   assert.match(env.decir('/defecto nequi'), /van ahora a <b>Nequi \*4321<\/b>/);

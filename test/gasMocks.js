@@ -1,11 +1,12 @@
 // Simulación mínima en memoria de los servicios de Apps Script usados por el bot.
 const fs = require('node:fs');
 const path = require('node:path');
-const { cargarGas } = require('./helpers');
+const { cargarConTransformacion } = require('./helpers');
 
 // bandeja: correos en el inbox personal { id, hilo, de, para, asunto, cuerpo, fecha, listaBaja }
 // gemini(payload) y jira(url) devuelven { codigo, cuerpo } para simular esas APIs.
-function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null, jira = null, telegram = null } = {}) {
+// transformar(nombre, codigo): modifica el código antes de cargarlo (tests del build de biblioteca).
+function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null, jira = null, telegram = null, transformar = null } = {}) {
   const props = {};
   const llamadas = { gemini: [], jira: [] };
   const cache = {};
@@ -101,8 +102,9 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
       fetch: (url, opts) => {
         const respuesta = (codigo, cuerpo) => ({ getResponseCode: () => codigo, getContentText: () => JSON.stringify(cuerpo) });
         if (url.includes('generativelanguage.googleapis.com')) {
-          llamadas.gemini.push(JSON.parse(opts.payload));
-          const r = gemini(JSON.parse(opts.payload));
+          const cuerpo = opts.payload ? JSON.parse(opts.payload) : { metodo: 'GET', url: url };
+          llamadas.gemini.push(cuerpo);
+          const r = gemini(cuerpo);
           return respuesta(r.codigo, r.cuerpo);
         }
         if (url.includes('atlassian.net')) {
@@ -183,9 +185,9 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
   }
 
   const archivos = fs.readdirSync(path.join(__dirname, '..', 'src')).filter((f) => f.endsWith('.js')).sort();
-  const ctx = cargarGas(...archivos);
+  const ctx = cargarConTransformacion(archivos, transformar);
   Object.assign(ctx, globals);
-  return { ctx, props, enviados, tgLlamadas, calendario, triggers, hojas, llamadas };
+  return { ctx, props, enviados, tgLlamadas, calendario, triggers, hojas, llamadas, cache, globals };
 }
 
 module.exports = { crearEntorno };

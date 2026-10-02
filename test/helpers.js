@@ -4,9 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 function cargarGas(...archivos) {
+  return cargarConTransformacion(archivos, null);
+}
+
+/** Como cargarGas, pero `transformar(nombre, codigo)` puede modificar cada archivo (p. ej. build de biblioteca). */
+function cargarConTransformacion(archivos, transformar) {
   const ctx = vm.createContext({ console });
   for (const f of archivos) {
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8'), ctx, { filename: f });
+    let codigo = fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8');
+    if (transformar) codigo = transformar(f, codigo);
+    vm.runInContext(codigo, ctx, { filename: f });
   }
   return ctx;
 }
@@ -18,4 +25,4 @@ function ymd(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-module.exports = { cargarGas, ymd };
+module.exports = { cargarGas, cargarConTransformacion, ymd };

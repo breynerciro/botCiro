@@ -16,6 +16,8 @@ function nombreCuenta_(c) {
 function buscarCuenta_(token, perfil, cuentas) {
   const t = normalizar_(token);
   const lista = (cuentas || leer_('Cuentas')).filter((c) => !perfil || c.perfil === perfil);
+  const id = /^id:(\d+)$/.exec(t); // así guarda /configurar la cuenta por defecto (alias como "ahorros" se repiten)
+  if (id) return lista.find((c) => String(c.id) === id[1]) || null;
   return (
     lista.find((c) => normalizar_(c.alias) === t) ||
     lista.find((c) => ultimos4_(c.ultimos4) === t) ||
@@ -65,27 +67,26 @@ function registrarManual_(tipo, args, perfil) {
 
 function registrarManualDatos_(tipo, datos, perfil) {
   const cuentas = leer_('Cuentas');
-  let cuenta;
+  let cuenta = null;
   if (datos.cuenta) {
     cuenta = buscarCuenta_(datos.cuenta, perfil, cuentas);
-    if (!cuenta) return `No encontré la cuenta "${esc_(datos.cuenta)}". Mira tus cuentas con /saldo.`;
-  } else {
+    if (!cuenta && !datos.cuentaInferida) return `No encontré la cuenta "${esc_(datos.cuenta)}". Mira tus cuentas con /saldo.`;
+    // "pagué 35 mil en Rappi" sin cuenta Rappi: Rappi era el comercio, no la cuenta.
+    if (!cuenta) datos = Object.assign({}, datos, { cuenta: null, descripcion: datos.descripcionCompleta || datos.descripcion });
+  }
+  if (!cuenta) {
     const p = perfil || perfilActivo_();
     const propias = cuentas.filter((c) => c.perfil === p);
     if (!propias.length) return `No tienes cuentas en el perfil ${p}. Crea una con <code>/nuevacuenta banco alias 1234 saldo</code>.`;
-    // Nunca se adivina: si hay más de una, se usa la cuenta por defecto o se pregunta.
+    // Nunca se adivina: si hay más de una, se usa la cuenta por defecto o se pregunta con botones.
     const porDefecto = getConfig_('DEFECTO_' + p, '');
     cuenta = (porDefecto && buscarCuenta_(porDefecto, p, cuentas)) || (propias.length === 1 ? propias[0] : null);
-    if (!cuenta) {
-      const movimientos = leer_('Movimientos');
-      const lineas = propias.map((c) => `• <code>#${esc_(c.alias || c.banco)}</code> ${esc_(nombreCuenta_(c))} · ${formatCOP_(saldoCuenta_(c, movimientos))}`);
-      return (
-        `❓ ¿A qué cuenta va ${tipo === 'debito' ? 'ese gasto' : 'ese ingreso'}? Vuelve a mandarlo con <code>#cuenta</code>, por ejemplo <code>/gasto ${datos.monto} ${esc_(datos.descripcion)} #${esc_(propias[0].alias || propias[0].banco)}</code>.\n\n` +
-        lineas.join('\n') +
-        `\n\nO fija una por defecto: <code>/defecto ${esc_(propias[0].alias || propias[0].banco)}</code>`
-      );
-    }
+    if (!cuenta) return preguntarCuenta_(tipo, datos, propias);
   }
+  return registrarEnCuenta_(tipo, datos, cuenta);
+}
+
+function registrarEnCuenta_(tipo, datos, cuenta) {
   const saldo = registrarMovimiento_({
     cuenta: cuenta,
     tipo: tipo,
@@ -100,6 +101,37 @@ function registrarManualDatos_(tipo, datos, perfil) {
   );
 }
 
+/**
+ * Varias cuentas y ninguna por defecto: guarda el movimiento como borrador (10 min) y pregunta
+ * con un botón por cuenta. El botón llega a procesarCallback_ como "mov:<borrador>:<cuentaId>".
+ */
+function preguntarCuenta_(tipo, datos, propias) {
+  const borrador = Utilities.getUuid().replace(/-/g, '').slice(0, 10);
+  cache_().put('mov_' + borrador, JSON.stringify({ tipo: tipo, monto: datos.monto, descripcion: datos.descripcion }), 600);
+  const botones = propias.map((c) => ({ text: nombreCuenta_(c), callback_data: `mov:${borrador}:${c.id}` }));
+  const filas = [];
+  for (let i = 0; i < botones.length; i += 2) filas.push(botones.slice(i, i + 2));
+  const ejemplo = esc_(propias[0].alias || propias[0].banco);
+  return {
+    texto:
+      `❓ ¿De qué cuenta ${tipo === 'debito' ? 'salió' : 'es'} ${tipo === 'debito' ? '−' : '+'}${formatCOP_(datos.monto)} ${esc_(datos.descripcion)}?\n` +
+      `<i>Para no tener que elegir: <code>/defecto ${ejemplo}</code></i>`,
+    teclado: { inline_keyboard: filas },
+  };
+}
+
+/** Botón de preguntarCuenta_: registra el borrador en la cuenta elegida. */
+function confirmarCuentaBorrador_(borrador, cuentaId) {
+  const cache = cache_();
+  const crudo = cache.get('mov_' + borrador);
+  if (!crudo) return '⌛ Ese registro ya venció. Envíalo de nuevo.';
+  const cuenta = leer_('Cuentas').find((c) => String(c.id) === String(cuentaId));
+  if (!cuenta) return 'No encontré esa cuenta.';
+  cache.remove('mov_' + borrador);
+  const d = JSON.parse(crudo);
+  return registrarEnCuenta_(d.tipo, d, cuenta);
+}
+
 /** /nuevacuenta bancolombia ahorros 1234 2300000 */
 function crearCuenta_(args, perfil) {
   const tokens = String(args).trim().split(/\s+/).filter(Boolean);
@@ -109,18 +141,24 @@ function crearCuenta_(args, perfil) {
   let ult = '';
   if (tokens.length && /^\d{4}$/.test(tokens[0])) ult = tokens.shift();
   const m = parseMonto_(tokens.join(' '));
+  const cuenta = crearCuentaDatos_({ perfil: perfil, banco: banco, alias: alias, ultimos4: ult, saldo: m ? m.monto : 0 });
+  return `🏦 Cuenta creada: <b>${esc_(nombreCuenta_(cuenta))}</b> (${perfil}) con saldo ${formatCOP_(cuenta.saldo_base)}`;
+}
+
+/** Crea la fila de una cuenta. Las tarjetas de crédito guardan la deuda como saldo negativo. */
+function crearCuentaDatos_(d) {
   const cuentas = leer_('Cuentas');
   const cuenta = {
     id: siguienteId_('Cuentas', cuentas),
-    perfil: perfil,
-    banco: banco.charAt(0).toUpperCase() + banco.slice(1),
-    alias: alias,
-    ultimos4: ult,
-    saldo_base: m ? m.monto : 0,
+    perfil: d.perfil,
+    banco: String(d.banco).charAt(0).toUpperCase() + String(d.banco).slice(1),
+    alias: d.alias || d.banco,
+    ultimos4: d.ultimos4 || '',
+    saldo_base: Number(d.saldo) || 0,
     fecha_base: new Date(),
   };
   agregar_('Cuentas', cuenta);
-  return `🏦 Cuenta creada: <b>${esc_(nombreCuenta_(cuenta))}</b> (${perfil}) con saldo ${formatCOP_(cuenta.saldo_base)}`;
+  return cuenta;
 }
 
 /** /ajustar nu 500000 → fija el saldo real desde ahora (conciliación). */

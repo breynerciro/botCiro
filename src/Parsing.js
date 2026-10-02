@@ -199,31 +199,98 @@ function parseMovimiento_(args) {
   return { monto: m.monto, descripcion: limpiarDescripcion_(m.resto), cuenta: c.cuenta };
 }
 
-const LIBRE_GASTO_ = /^(?:gast[eé]|pagu[eé]|compr[eé]|gasto|pago)(?=\s|$)/iu;
-const LIBRE_INGRESO_ = /^(?:recib[ií]|me\s+pagaron|me\s+consignaron|me\s+transfirieron|ingreso|cobr[eé])(?=\s|$)/iu;
+// Verbos de gasto/ingreso como palabra completa, en cualquier parte del mensaje.
+const VERBO_GASTO_ = /(^|[^\p{L}])(gast[eéo]|gastos?|pagu[eé]|pagos?|compr[eéa]|compras|compramos|transfer[ií]|envi[eé]|retir[eé]|me\s+cobraron)(?![\p{L}\d])/iu;
+const VERBO_INGRESO_ = /(^|[^\p{L}])(recib[ií]|me\s+pagaron|me\s+consignaron|me\s+transfirieron|me\s+llegaron|ingresos?|cobr[eé])(?![\p{L}\d])/iu;
 const LIBRE_TAREA_ = /^(?:tarea|pendiente|recordar|recu[eé]rdame)\s*[:-]?\s+/iu;
+// Palabras que conectan el verbo o el monto con la cuenta: "por nequi", "con la nu", "desde mi cuenta".
+const ANTES_DE_CUENTA_ = /(?:(?:^|\s+)(?:por|con|desde|en|de|del|a|al|mi|la|el|cuenta|tarjeta))*\s*$/iu;
+
+/** Descripción por defecto cuando el mensaje solo trae verbo, monto y cuenta ("compra por nequi 40000"). */
+function descripcionDeVerbo_(verbo, tipo) {
+  const v = normalizar_(verbo);
+  if (tipo === 'ingreso') return 'ingreso';
+  if (v.indexOf('compr') === 0) return 'compra';
+  if (v.indexOf('pag') === 0) return 'pago';
+  if (v.indexOf('transf') === 0) return 'transferencia';
+  if (v.indexOf('envi') === 0) return 'envío';
+  if (v.indexOf('retir') === 0) return 'retiro';
+  if (v.indexOf('cobraron') >= 0) return 'cobro';
+  return 'gasto';
+}
+
+/** Entidades conocidas más los bancos/alias de las cuentas del usuario (`extras`). */
+function entidadesCon_(extras) {
+  const entidades = ENTIDADES_.slice();
+  (extras || []).forEach((nombre) => {
+    const clave = normalizar_(nombre);
+    if (clave && !entidades.some((e) => e.id === clave || e.claves.indexOf(clave) >= 0)) {
+      entidades.push({ id: clave, nombre: String(nombre), claves: [clave] });
+    }
+  });
+  return entidades;
+}
+
+/** Busca una cuenta nombrada sin "#" ("por nequi") y la quita del texto junto con su preposición. */
+function mencionCuenta_(texto, extras) {
+  const menciones = buscarMenciones_(normalizarIgualLargo_(texto), entidadesCon_(extras));
+  if (!menciones.length) return null;
+  const m = menciones[menciones.length - 1]; // la cuenta suele ir al final
+  const antes = texto.slice(0, m.inicio).replace(ANTES_DE_CUENTA_, '');
+  const resto = (antes + ' ' + texto.slice(m.fin)).replace(/\s+/g, ' ').trim();
+  return { cuenta: m.ent.id, resto: resto };
+}
+
+function movimientoLibre_(t, m, tipo, extras) {
+  const sinVerbo = (t.slice(0, m.index + m[1].length) + ' ' + t.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim();
+  const c = extraerCuenta_(sinVerbo);
+  const porDefecto = descripcionDeVerbo_(m[2], tipo);
+  if (c.cuenta) {
+    const mov = parseMonto_(c.resto);
+    if (!mov) return null;
+    return { tipo: tipo, monto: mov.monto, descripcion: limpiarDescripcion_(mov.resto) || porDefecto, cuenta: c.cuenta };
+  }
+  const completo = parseMonto_(c.resto);
+  if (!completo) return null;
+  const r = { tipo: tipo, monto: completo.monto, descripcion: limpiarDescripcion_(completo.resto) || porDefecto, cuenta: null };
+  const mencion = mencionCuenta_(c.resto, extras);
+  const sinCuenta = mencion && parseMonto_(mencion.resto);
+  if (sinCuenta) {
+    // Si al final esa cuenta no existe, se registra con la descripción completa (p. ej. "Rappi" era el comercio).
+    r.cuentaInferida = true;
+    r.descripcionCompleta = r.descripcion;
+    r.descripcion = limpiarDescripcion_(sinCuenta.resto) || porDefecto;
+    r.cuenta = mencion.cuenta;
+  }
+  return r;
+}
 
 /**
- * Mensajes sin comando: "gasté 50 mil en almuerzo", "me pagaron 2 millones nómina", "tarea: llamar a Juan",
- * o un reporte de saldos: "tengo 80 mil en efectivo y debo 950 mil en la tarjeta Falabella".
- * `extras` son nombres de bancos de las cuentas del usuario, para reconocerlas aunque no estén en ENTIDADES_.
+ * Mensajes sin comando: "gasté 50 mil en almuerzo", "compra por nequi 40000", "me pagaron 2 millones nómina",
+ * "tarea: llamar a Juan", o un reporte de saldos: "tengo 80 mil en efectivo y debo 950 mil en la tarjeta Falabella".
+ * `extras` son los bancos de las cuentas del usuario, para reconocerlas aunque no estén en ENTIDADES_;
+ * `alias` ("tc", "ahorros") solo sirven para ubicar la cuenta de un gasto, no para reportes de saldo.
  */
-function parseTextoLibre_(texto, extras) {
+function parseTextoLibre_(texto, extras, alias) {
+  const cuentasMov = (extras || []).concat(alias || []);
   const t = String(texto || '').trim();
   let m;
   if ((m = LIBRE_TAREA_.exec(t))) {
     const resto = t.slice(m[0].length).trim();
     return resto ? { tipo: 'tarea', texto: resto } : null;
   }
-  const tipo = LIBRE_GASTO_.test(t) ? 'gasto' : LIBRE_INGRESO_.test(t) ? 'ingreso' : null;
-  if (!tipo) {
-    const saldos = parseSaldosLibre_(t, extras);
-    return saldos ? { tipo: 'saldos', items: saldos.items, sinAsignar: saldos.sinAsignar } : null;
-  }
-  const sinVerbo = t.replace(tipo === 'gasto' ? LIBRE_GASTO_ : LIBRE_INGRESO_, '').trim();
-  const mov = parseMovimiento_(sinVerbo);
-  if (!mov) return null;
-  return { tipo: tipo, monto: mov.monto, descripcion: mov.descripcion, cuenta: mov.cuenta };
+  // Las preguntas ("¿cuánto pagué este mes?") no son registros: las contesta la conversación.
+  if (/[¿?]/.test(t)) return null;
+  const gasto = VERBO_GASTO_.exec(t);
+  const ingreso = VERBO_INGRESO_.exec(t);
+  // El verbo al inicio manda; si está en medio, primero se mira si es un reporte de saldos.
+  if (ingreso && ingreso.index === 0) return movimientoLibre_(t, ingreso, 'ingreso', cuentasMov);
+  if (gasto && gasto.index === 0) return movimientoLibre_(t, gasto, 'gasto', cuentasMov);
+  const saldos = parseSaldosLibre_(t, extras);
+  if (saldos) return { tipo: 'saldos', items: saldos.items, sinAsignar: saldos.sinAsignar };
+  if (ingreso) return movimientoLibre_(t, ingreso, 'ingreso', cuentasMov);
+  if (gasto) return movimientoLibre_(t, gasto, 'gasto', cuentasMov);
+  return null;
 }
 
 // ── Reporte de saldos en texto libre ─────────────────────────────────────────
@@ -318,14 +385,7 @@ function parseSaldosLibre_(texto, extras) {
   const n = normalizarIgualLargo_(texto);
   if (!SALDO_CLAVE_.test(n)) return null;
 
-  const entidades = ENTIDADES_.slice();
-  (extras || []).forEach((nombre) => {
-    const clave = normalizar_(nombre);
-    if (clave && !entidades.some((e) => e.id === clave || e.claves.indexOf(clave) >= 0)) {
-      entidades.push({ id: clave, nombre: String(nombre), claves: [clave] });
-    }
-  });
-
+  const entidades = entidadesCon_(extras);
   const menciones = buscarMenciones_(n, entidades);
   const montos = buscarMontos_(n);
   if (!menciones.length || !montos.length) return null;

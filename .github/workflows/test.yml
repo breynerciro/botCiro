@@ -16,3 +16,5 @@ jobs:
         run: npm run check
       - name: Pruebas
         run: npm test
+      - name: Build de biblioteca
+        run: node scripts/biblioteca.js build

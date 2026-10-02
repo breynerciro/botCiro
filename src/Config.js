@@ -8,7 +8,8 @@
  *   SYNC_SECRET         secreto que usa el satélite de la otra cuenta (lo genera setup())
  *   CODIGO_VINCULACION  código para /vincular tu chat (lo genera setup())
  *   CHAT_ID             chat autorizado (se guarda al vincular)
- *   WEBAPP_URL          opcional: URL /exec del despliegue si getService().getUrl() no la da bien
+ *   WEBAPP_URL          URL /exec del despliegue (la guarda el instalador o registrarWebhook())
+ *   BOT_NOMBRE, BOT_USUARIO   nombre y @usuario del bot (los guarda el instalador con getMe)
  *   GEMINI_API_KEY      API key de Google AI Studio (análisis de correos personales)
  *   JIRA_SITIO, JIRA_CORREO, JIRA_TOKEN   acceso a Jira Cloud
  */
@@ -26,10 +27,11 @@ const ESQUEMAS = {
 };
 
 const CONFIG_INICIAL = [
+  ['PERFIL_TRABAJO', 'auto', 'Perfil de trabajo: si | no | auto (se activa al conectar el satélite, Jira o crear cuentas de trabajo)'],
   ['PERFIL_ACTIVO', 'personal', 'Perfil usado al crear tareas o movimientos sin indicarlo (personal | trabajo)'],
   ['CAL_personal', 'primary', 'Calendario personal ("primary" = el principal de esta cuenta)'],
   ['CAL_trabajo', 'satelite', '"satelite" = lo sincroniza el script satélite de la cuenta de trabajo; o el ID de un calendario compartido'],
-  ['HORA_RESUMEN', '6:30', 'Hora del resumen diario (H:MM). Al cambiarla, ejecuta instalarTriggers()'],
+  ['HORA_RESUMEN', '6:30', 'Hora del resumen diario (H:MM). Cámbiala con /configurar → Preferencias'],
   ['MINUTOS_RECORDATORIO', '10', 'Minutos de anticipación para avisar reuniones'],
   ['IA_ACTIVA', 'si', 'Analizar con Gemini los correos PERSONALES que las reglas no clasifican (nunca los de trabajo)'],
   ['GEMINI_MODELO', 'gemini-3.5-flash-lite', 'Modelo de Gemini; ejecuta modelosGemini() para ver los disponibles'],
@@ -50,15 +52,15 @@ const CONFIG_INICIAL = [
 ];
 
 function prop_(clave) {
-  return PropertiesService.getScriptProperties().getProperty(clave);
+  return props_().getProperty(clave);
 }
 
 function setProp_(clave, valor) {
-  PropertiesService.getScriptProperties().setProperty(clave, String(valor));
+  props_().setProperty(clave, String(valor));
 }
 
 function borrarProp_(clave) {
-  PropertiesService.getScriptProperties().deleteProperty(clave);
+  props_().deleteProperty(clave);
 }
 
 let CONFIG_CACHE_ = null;
@@ -79,6 +81,32 @@ function setConfig_(clave, valor) {
   if (fila) actualizar_('Config', fila._fila, { valor: valor });
   else agregar_('Config', { clave: clave, valor: valor, nota: '' });
   CONFIG_CACHE_ = null;
+}
+
+/** Nombre que cada persona le puso a su bot en @BotFather (se guarda al instalar). */
+function nombreBot_() {
+  return prop_('BOT_NOMBRE') || 'botCiro';
+}
+
+/**
+ * El perfil trabajo es opcional. Config PERFIL_TRABAJO: "si", "no" o "auto" (por defecto):
+ * se activa solo si hay satélite, Jira, un calendario de trabajo, cuentas de trabajo o es el perfil activo.
+ */
+function trabajoActivo_() {
+  const modo = normalizar_(getConfig_('PERFIL_TRABAJO', 'auto'));
+  if (modo === 'si' || modo === 'no') return modo === 'si';
+  return Boolean(
+    prop_('SYNC_ULTIMA_trabajo') ||
+      jiraConfigurado_() ||
+      getConfig_('CAL_trabajo', 'satelite') !== 'satelite' ||
+      normalizar_(getConfig_('PERFIL_ACTIVO', 'personal')) === 'trabajo' ||
+      leer_('Cuentas').some((c) => c.perfil === 'trabajo')
+  );
+}
+
+/** Perfiles que se muestran en resúmenes y listados. */
+function perfilesActivos_() {
+  return trabajoActivo_() ? PERFILES : ['personal'];
 }
 
 function perfilActivo_() {

@@ -169,7 +169,7 @@ function aplicarClasificacion_(c, res, origen) {
 /** Procesa la cola: clasifica, crea pendientes y envía un solo aviso agrupado. */
 function procesarColaCorreos_() {
   // Evita que dos ejecuciones (trigger y /revisar) procesen la misma cola a la vez.
-  const cache = CacheService.getScriptCache();
+  const cache = cache_();
   if (cache.get('procesando_cola')) return 0;
   cache.put('procesando_cola', '1', 300);
   try {
@@ -276,7 +276,7 @@ function lineasCorreos_(perfiles, horas, detallado) {
 }
 
 function cmdCorreos_(perfil) {
-  const perfiles = perfil ? [perfil] : PERFILES;
+  const perfiles = perfil ? [perfil] : perfilesActivos_();
   const lineas = lineasCorreos_(perfiles, 24, true);
   if (!lineas.length) return '📭 No hay correos analizados en las últimas 24 horas.';
   return '📬 <b>Correos de las últimas 24 h</b>\n\n' + lineas.join('\n\n');

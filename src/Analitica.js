@@ -80,7 +80,7 @@ function cmdInforme_(args, perfil) {
   const mes = parseMes_(partes.join(' '));
   const siguiente = new Date(mes.getFullYear(), mes.getMonth() + 1, 1);
   const mesAnterior = new Date(mes.getFullYear(), mes.getMonth() - 1, 1);
-  const perfiles = perfilArg ? [perfilArg] : PERFILES;
+  const perfiles = perfilArg ? [perfilArg] : perfilesActivos_();
 
   const movs = leer_('Movimientos').filter((m) => perfiles.indexOf(m.perfil) >= 0);
   const enRango = (desde, hasta, soloDebitos) =>

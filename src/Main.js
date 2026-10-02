@@ -27,7 +27,7 @@ function doPost(e) {
 
 function procesarUpdate_(update) {
   // Telegram puede reenviar el mismo update; se procesa una sola vez.
-  const cache = CacheService.getScriptCache();
+  const cache = cache_();
   const claveCache = 'upd_' + update.update_id;
   if (cache.get(claveCache)) return;
   cache.put(claveCache, '1', 21600);
@@ -42,10 +42,12 @@ function procesarUpdate_(update) {
   if (autorizados.indexOf(chatId) < 0) {
     // /vincular <código> agrega este chat: sirve para vincular otro dispositivo
     // (tablet, PC) con el mismo código. Sin el código, cualquier chat se ignora.
+    // El botón "Abrir en Telegram" del instalador envía "/start <código>".
     const codigo = prop_('CODIGO_VINCULACION');
-    if (codigo && msg.text.trim() === '/vincular ' + codigo) {
+    const t = msg.text.trim();
+    if (codigo && (t === '/vincular ' + codigo || t === '/start ' + codigo)) {
       setProp_('CHAT_ID', autorizados.concat([chatId]).join(','));
-      enviar_('✅ Este chat quedó vinculado. Escribe /ayuda para ver lo que puedo hacer.', chatId);
+      enviarRespuesta_(bienvenida_(autorizados.length === 0), chatId);
     }
     return;
   }
@@ -53,33 +55,70 @@ function procesarUpdate_(update) {
   let respuesta;
   try {
     CHAT_ACTUAL_ = chatId;
-    respuesta = conBloqueo_(() => responder_(msg.text));
+    respuesta = conBloqueo_(() => {
+      // /configurar puede estar esperando un dato (API key, últimos 4…). Un comando cancela la espera.
+      const espera = espera_(chatId);
+      if (espera && msg.text.trim().charAt(0) !== '/') return recibirEspera_(espera, msg);
+      if (espera) cancelarEspera_(chatId);
+      return responder_(msg.text);
+    });
   } catch (err) {
     registrarError_('comando', err);
     respuesta = '⚠️ ' + esc_(err.message);
   }
-  if (respuesta) enviar_(respuesta, chatId);
+  enviarRespuesta_(respuesta, chatId);
+}
+
+/** Mensaje al vincular un chat. El primero recibe la guía de configuración. */
+function bienvenida_(primerChat) {
+  if (!primerChat) return '✅ Este chat quedó vinculado. Escribe /ayuda para ver lo que puedo hacer.';
+  return {
+    texto:
+      `👋 ¡Hola! Soy <b>${esc_(nombreBot_())}</b>. Ya quedé conectado a tu Google.\n\n` +
+      'Para empezar, configura lo que quieras usar (todo desde aquí, sin tocar la hoja):',
+    teclado: { inline_keyboard: [[{ text: '⚙️ Configurar', callback_data: 'cmd:configurar' }, { text: '📖 Ayuda', callback_data: 'cmd:ayuda' }]] },
+  };
+}
+
+/** Texto de una respuesta: los comandos devuelven un string o { texto, teclado } (con botones). */
+function textoRespuesta_(r) {
+  return r && typeof r === 'object' ? String(r.texto || '') : String(r || '');
+}
+
+function enviarRespuesta_(r, chatId) {
+  const texto = textoRespuesta_(r);
+  if (texto) enviar_(texto, chatId, r && typeof r === 'object' ? r.teclado : null);
 }
 
 /**
  * Botones inline: cerrar pendiente (#id), ejecutar un comando o dar feedback del análisis.
  *   hecho:3   → cierra el pendiente #3
  *   cmd:p     → ejecuta /p (lista de pendientes) y la manda al chat
+ *   cfg:ia    → sección de /configurar (edita el mismo mensaje)
+ *   mov:ab12:3 → registra el gasto/ingreso en borrador ab12 en la cuenta 3
  *   fb:ok:12  → el correo 12 estaba bien clasificado (fb:mal = mal clasificado)
  */
 function procesarCallback_(cb) {
   const chatId = String((cb.message && cb.message.chat && cb.message.chat.id) || '');
   const datos = String(cb.data || '');
   if (chats_().indexOf(chatId) < 0) return responderCallback_(cb.id, '⚠️ Chat no autorizado.');
+  CHAT_ACTUAL_ = chatId;
   let texto = '';
   try {
-    if (datos.indexOf('hecho:') === 0) {
+    if (datos.indexOf('cfg:') === 0) {
+      const r = conBloqueo_(() => accionConfigurar_(datos.slice(4), chatId));
+      if (cb.message && cb.message.message_id) editarMensaje_(chatId, cb.message.message_id, r.texto, r.teclado);
+      else enviarRespuesta_(r, chatId);
+    } else if (datos.indexOf('hecho:') === 0) {
       texto = conBloqueo_(() => completarTarea_(datos.slice(6)));
     } else if (datos.indexOf('cmd:') === 0) {
       const nombre = datos.slice(4).replace(/[^a-z]/g, '');
-      texto = conBloqueo_(() => responder_('/' + nombre)) || '';
-      if (texto) enviar_(texto, chatId);
+      enviarRespuesta_(conBloqueo_(() => responder_('/' + nombre)), chatId);
       texto = '✅ Enviado';
+    } else if (datos.indexOf('mov:') === 0) {
+      const partes = datos.split(':');
+      enviarRespuesta_(conBloqueo_(() => confirmarCuentaBorrador_(partes[1], partes[2])), chatId);
+      texto = '✅ Registrado';
     } else if (datos.indexOf('fb:') === 0) {
       const partes = datos.split(':');
       texto = conBloqueo_(() => registrarFeedback_(partes[2], partes[1] === 'ok' ? 'ok' : 'mal'));
