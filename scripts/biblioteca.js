@@ -4,6 +4,7 @@
  *
  *   node scripts/biblioteca.js crear            una vez: crea el proyecto de la biblioteca
  *   node scripts/biblioteca.js plantilla-crear  una vez: crea la hoja plantilla con su script
+ *   node scripts/biblioteca.js satelite-crear   una vez: crea la hoja plantilla del satélite (cuenta de trabajo)
  *   node scripts/biblioteca.js publicar         cada versión: build → push → versión → plantilla
  *
  * Los IDs quedan en biblioteca.json (no son secretos). Usa la sesión de clasp de tu cuenta personal.
@@ -16,6 +17,7 @@ const RAIZ = path.join(__dirname, '..');
 const BUILD = path.join(RAIZ, 'build', 'biblioteca');
 const PLANTILLA = path.join(RAIZ, 'plantilla');
 const CONFIG = path.join(RAIZ, 'biblioteca.json');
+const SATELITE = path.join(RAIZ, 'build', 'satelite-plantilla');
 
 const leerConfig = () => (fs.existsSync(CONFIG) ? JSON.parse(fs.readFileSync(CONFIG, 'utf8')) : {});
 const guardarConfig = (c) => fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + '\n');
@@ -84,16 +86,45 @@ function plantillaCrear() {
   if (!config.scriptId) throw new Error('Primero crea la biblioteca: npm run biblioteca:crear');
   if (config.plantillaScriptId) throw new Error('La plantilla ya existe: ' + config.plantillaScriptId);
   const respaldo = fs.readFileSync(path.join(PLANTILLA, 'appsscript.json'), 'utf8');
+  if (respaldo.includes('ID_DE_LA_BIBLIOTECA')) throw new Error('Primero publica la biblioteca: npm run biblioteca:publicar');
   try {
     clasp(['create', '--type', 'sheets', '--title', 'Asistente personal (plantilla)', '--rootDir', '.'], PLANTILLA);
   } finally {
     fs.writeFileSync(path.join(PLANTILLA, 'appsscript.json'), respaldo); // clasp create sobrescribe el manifiesto
   }
+  clasp(['push', '--force'], PLANTILLA);
   const { scriptId, parentId } = JSON.parse(fs.readFileSync(path.join(PLANTILLA, '.clasp.json'), 'utf8'));
   const hoja = Array.isArray(parentId) ? parentId[0] : parentId;
   guardarConfig(Object.assign(config, { plantillaScriptId: scriptId, plantillaHojaId: hoja }));
   console.log(`\nPlantilla creada. Compártela como Lector y reparte este enlace:
 https://docs.google.com/spreadsheets/d/${hoja}/copy`);
+}
+
+/** El satélite como plantilla: mismo Satelite.js, con permiso para el menú de la hoja. */
+function buildSatelite() {
+  fs.rmSync(SATELITE, { recursive: true, force: true });
+  fs.mkdirSync(SATELITE, { recursive: true });
+  fs.copyFileSync(path.join(RAIZ, 'satelite', 'Satelite.js'), path.join(SATELITE, 'Satelite.js'));
+  const m = JSON.parse(fs.readFileSync(path.join(RAIZ, 'satelite', 'appsscript.json'), 'utf8'));
+  m.oauthScopes.push('https://www.googleapis.com/auth/script.container.ui');
+  fs.writeFileSync(path.join(SATELITE, 'appsscript.json'), JSON.stringify(m, null, 2) + '\n');
+  const config = leerConfig();
+  if (config.sateliteScriptId) fs.writeFileSync(path.join(SATELITE, '.clasp.json'), JSON.stringify({ scriptId: config.sateliteScriptId, rootDir: '.' }));
+}
+
+function sateliteCrear() {
+  const config = leerConfig();
+  if (config.sateliteScriptId) throw new Error('La plantilla del satélite ya existe: ' + config.sateliteScriptId);
+  buildSatelite();
+  const manifiesto = fs.readFileSync(path.join(SATELITE, 'appsscript.json'), 'utf8');
+  clasp(['create', '--type', 'sheets', '--title', 'Asistente · satélite de trabajo (plantilla)', '--rootDir', '.'], SATELITE);
+  fs.writeFileSync(path.join(SATELITE, 'appsscript.json'), manifiesto);
+  clasp(['push', '--force'], SATELITE);
+  const { scriptId, parentId } = JSON.parse(fs.readFileSync(path.join(SATELITE, '.clasp.json'), 'utf8'));
+  const hoja = Array.isArray(parentId) ? parentId[0] : parentId;
+  guardarConfig(Object.assign(config, { sateliteScriptId: scriptId, sateliteHojaId: hoja }));
+  console.log(`\nPlantilla del satélite creada. Compártela como Lector (cualquiera con el enlace).
+El bot la ofrece en /configurar → Trabajo desde la próxima publicación de la biblioteca.`);
 }
 
 function publicar() {
@@ -121,6 +152,10 @@ function publicar() {
     fs.writeFileSync(path.join(PLANTILLA, '.clasp.json'), JSON.stringify({ scriptId: config.plantillaScriptId, rootDir: '.' }));
     clasp(['push', '--force'], PLANTILLA);
   }
+  if (config.sateliteScriptId) {
+    buildSatelite();
+    clasp(['push', '--force'], SATELITE);
+  }
 
   console.log(`\n✅ Biblioteca v${version} publicada como versión ${numero}.
 Último paso, para que las copias reciban el aviso: abre la biblioteca (cd build/biblioteca && clasp open)
@@ -130,10 +165,10 @@ y ejecuta anunciarVersion().`);
 module.exports = { transformar };
 
 if (require.main === module) {
-  const acciones = { build: () => build(0), crear, 'plantilla-crear': plantillaCrear, publicar };
+  const acciones = { build: () => build(0), crear, 'plantilla-crear': plantillaCrear, 'satelite-crear': sateliteCrear, publicar };
   const accion = acciones[process.argv[2]];
   if (!accion) {
-    console.error('Uso: node scripts/biblioteca.js crear | plantilla-crear | publicar | build');
+    console.error('Uso: node scripts/biblioteca.js crear | plantilla-crear | satelite-crear | publicar | build');
     process.exit(1);
   }
   try {

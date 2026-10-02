@@ -1,19 +1,40 @@
 /**
- * botCiro · satélite
+ * Satélite del asistente (botCiro)
  *
  * Se instala en tu cuenta de Google de trabajo y cada 10 min envía al bot principal:
  *   - los eventos de tu calendario (desde ayer hasta DIAS_ADELANTE días adelante),
  *   - los correos nuevos de la bandeja: SOLO remitente, asunto, fecha y si te llegaron directo.
  *     El cuerpo nunca sale de esta cuenta; el bot los clasifica con reglas, sin IA.
  *
- * Configuración: propiedad del script SYNC_URL (la imprime datosSatelite() en el bot principal).
- * Instalación: ejecutar instalar() una vez.
+ * Instalación fácil (copia de la plantilla del satélite): menú 🔗 Satélite → Conectar y pegar el código
+ * que da el bot en /configurar → Trabajo.
+ * Instalación manual (proyecto standalone): propiedad SYNC_URL (la imprime datosSatelite() en el bot)
+ * y ejecutar instalar() una vez.
  */
 
 const PERFIL = 'trabajo';
 const DIAS_ADELANTE = 14;
 const MAX_HILOS = 50;
 const CONSULTA_BANDEJA = 'in:inbox -category:promotions -category:social -from:me';
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('🔗 Satélite').addItem('Conectar', 'conectar').addItem('Sincronizar ahora', 'sincronizar').addToUi();
+}
+
+/** Menú → Conectar: pide el código del bot, lo guarda e instala el trigger. */
+function conectar() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Conectar con tu asistente', 'Pega el código que te dio el bot en /configurar → Trabajo:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const codigo = r.getResponseText().trim();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec\?sync=[\w-]+$/.test(codigo)) {
+    ui.alert('Ese código no se ve bien. Cópialo completo desde Telegram (empieza por https://script.google.com).');
+    return;
+  }
+  PropertiesService.getScriptProperties().setProperty('SYNC_URL', codigo);
+  instalar();
+  ui.alert('✅ Listo. En unos segundos te llega la confirmación por Telegram.');
+}
 
 function instalar() {
   ScriptApp.getProjectTriggers()

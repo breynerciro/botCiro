@@ -14,6 +14,7 @@
     "satelite:abrir": "cd satelite && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp open",
     "biblioteca:crear": "node scripts/biblioteca.js crear",
     "biblioteca:publicar": "npm test && node scripts/biblioteca.js publicar",
-    "plantilla:crear": "node scripts/biblioteca.js plantilla-crear"
+    "plantilla:crear": "node scripts/biblioteca.js plantilla-crear",
+    "satelite:plantilla": "node scripts/biblioteca.js satelite-crear"
   }
 }

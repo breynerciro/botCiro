@@ -36,8 +36,10 @@ function setup() {
   col('Cuentas', 'saldo_base').setNumberFormat('$#,##0');
   col('Movimientos', 'monto').setNumberFormat('$#,##0');
 
+  // Solo se borran pestañas vacías ("Hoja 1"): las que la persona creó a mano se respetan,
+  // porque setup() también corre solo después de cada actualización.
   ss.getSheets()
-    .filter((sh) => !ESQUEMAS[sh.getName()] && sh.getName() !== HOJA_INICIO_)
+    .filter((sh) => !ESQUEMAS[sh.getName()] && sh.getName() !== HOJA_INICIO_ && sh.getLastRow() === 0)
     .forEach((sh) => ss.deleteSheet(sh));
 
   const existentes = new Set(leer_('Config').map((r) => r.clave));

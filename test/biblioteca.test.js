@@ -90,3 +90,15 @@ test('aviso de actualización: una sola vez por versión y con los pasos', () =>
   run('scheduler');
   assert.doesNotMatch(env.enviados.map((m) => m.text).join('\n'), /versión nueva/, 'no repite el aviso');
 });
+
+test('setup (que corre tras cada actualización) no borra pestañas creadas a mano', () => {
+  const env = crearEntorno();
+  env.ctx.setup();
+  const extra = env.ctx.ss_().insertSheet('Presupuesto');
+  extra.appendRow(['mes', 'tope']);
+  env.ctx.ss_().insertSheet('Vacía');
+  env.ctx.setup();
+  assert.ok(env.hojas.Presupuesto, 'la pestaña con datos se conserva');
+  assert.equal(env.hojas['Vacía'], undefined, 'la vacía se limpia');
+  assert.equal(env.hojas['Hoja 1'], undefined);
+});

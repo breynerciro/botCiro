@@ -149,7 +149,7 @@ function purgarDatos_() {
 /** Copia de seguridad semanal de la hoja de datos (mantiene las últimas N). */
 function backupDatos_() {
   try {
-    const copia = ss_().copy('botCiro · backup ' + fmtFecha_(new Date(), 'yyyy-MM-dd'));
+    const copia = ss_().copy(nombreBot_() + ' · backup ' + fmtFecha_(new Date(), 'yyyy-MM-dd'));
     const maximo = Number(getConfig_('BACKUPS_MAX', '8')) || 8;
     const viejos = JSON.parse(prop_('BACKUPS') || '[]');
     const nuevos = [{ id: copia.getId(), fecha: Date.now(), url: copia.getUrl() }].concat(viejos);

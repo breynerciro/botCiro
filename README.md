@@ -1,6 +1,6 @@
 # botCiro
 
-Asistente personal en Telegram que reúne en un solo chat **saldos, reuniones y pendientes**, separados en perfil `personal` y `trabajo`.
+Asistente personal en Telegram que reúne en un solo chat **saldos, reuniones y pendientes**, separados en perfil `personal` y, si quieres, `trabajo`.
 
 - Corre gratis en la nube de Google (Apps Script) con tu cuenta personal de Gmail. No depende de tu PC.
 - Los datos viven en una Google Sheet privada en tu Drive, que puedes revisar y corregir a mano.
@@ -20,27 +20,71 @@ Asistente personal en Telegram que reúne en un solo chat **saldos, reuniones y 
 | Informes | `/informe` agrupa tus gastos por categoría (mercado, transporte, salud…) y los compara con el mes anterior. |
 | Salud | `/estado` muestra triggers, errores, cola, tasa USD y sincronizaciones; un watchdog diario te avisa **solo** si algo falla. |
 
-## Instalación (una sola vez, ~20 min)
+## Instalar (sin terminal, ~10 min)
 
-### 1. Crear el bot de Telegram
+Cada persona tiene **su propia copia**: su bot, su Google y su hoja. Nadie más ve sus datos, ni siquiera quien le compartió el enlace.
+
+1. **Crea tu bot:** en Telegram abre **@BotFather** → `/newbot` → ponle nombre y copia el **token**.
+2. **Copia la plantilla:** abre el enlace que te compartieron (`…/copy`) con tu Gmail → **Hacer una copia**.
+3. **Instala:** en la hoja nueva, menú **🤖 Asistente → Instalar** → autoriza → pega el token. El diálogo te guía para publicar la app web (4 clics en *Implementar → Nueva implementación → Aplicación web*, con *Ejecutar como: Yo* y *Acceso: Cualquier usuario*) y pegar su URL.
+4. Toca **Abrir en Telegram** → **Iniciar**. El bot queda vinculado solo a tu chat.
+
+Lo demás se configura **desde el chat** con `/configurar`:
+
+| Botón | Qué hace |
+|---|---|
+| 🤖 IA | Pegas la API key gratis de [Google AI Studio](https://aistudio.google.com/apikey); el bot la valida y borra tu mensaje. |
+| 🏦 Cuentas | Agregas bancos, billeteras, tarjetas o efectivo paso a paso, y eliges la cuenta por defecto. |
+| 💼 Trabajo | *Opcional.* Te da un código para conectar tu cuenta de trabajo con la plantilla del satélite (menú **🔗 Satélite → Conectar**). |
+| 🧩 Jira | *Opcional.* Sitio, correo y token, validados contra Jira. |
+| ⏰ Preferencias | Hora del resumen, avisos de reuniones y vencimientos. Al cambiar la hora, el trigger se reprograma solo. |
+
+Si no tienes cuenta de trabajo, el perfil `trabajo` no aparece en ningún lado.
+
+### Actualizar
+Cuando hay una versión nueva, el bot te avisa **una vez** con los pasos (2 min, se conservan tus datos y tu configuración). También puedes revisar con `/actualizar` o con el menú **🤖 Asistente → Buscar actualización**:
+1. En la hoja: **Extensiones → Apps Script**.
+2. **Bibliotecas → BotCiro** → elige la versión nueva → Guardar.
+3. **Implementar → Gestionar implementaciones** → ✏️ → *Versión: Nueva versión* → Implementar. La URL no cambia.
+
+> Google no deja que un script se actualice solo sin un proyecto propio de Google Cloud, por eso estos clics son manuales.
+
+> **Confianza:** tu copia ejecuta el código de la biblioteca de quien te compartió la plantilla, con acceso a tu Gmail y tu calendario. Instálalo solo si confías en esa persona. Tus datos quedan en tu hoja y en tu copia, nunca en la biblioteca.
+
+## Para el autor: publicar la biblioteca y las plantillas
+Una sola vez, con `clasp login` en tu cuenta personal:
+```bash
+npm run biblioteca:crear       # proyecto "BotCiro (biblioteca)"; compártelo como Lector (cualquiera con el enlace)
+npm run biblioteca:publicar    # tests → build → nueva versión → actualiza la plantilla
+npm run plantilla:crear        # hoja plantilla con su script; comparte .../copy
+npm run satelite:plantilla     # hoja plantilla del satélite (opcional)
+```
+Los IDs quedan en `biblioteca.json`. En cada versión nueva: sube `VERSION` y `NOTAS_VERSION_` (`src/Version.js`, `src/Actualizar.js`), corre `npm run biblioteca:publicar` y ejecuta `anunciarVersion()` en el editor de la biblioteca para que las copias reciban el aviso.
+
+> **Nunca guardes secretos en las Propiedades del script de la biblioteca:** todas las copias pueden leerlas. Cada copia guarda sus datos en su propio almacén (`src/Contexto.js`).
+
+<details>
+<summary>Instalación avanzada: proyecto propio con clasp (sin plantilla)</summary>
+
+
+#### 1. Crear el bot de Telegram
 1. En Telegram, abre **@BotFather** → `/newbot` → ponle nombre.
 2. Guarda el **token** que te entrega (no lo compartas ni lo subas a git).
 
-### 2. Subir el código a Apps Script
+#### 2. Subir el código a Apps Script
 ```bash
 npm i -g @google/clasp
 clasp login                       # con tu Gmail PERSONAL
 ```
 Activa la API en https://script.google.com/home/usersettings (Google Apps Script API → On). Luego:
 ```bash
-cd /mnt/Disco/Proyectos/botCiro
 clasp create --type standalone --title botCiro --rootDir src
 git checkout src/appsscript.json  # clasp create puede sobrescribir el manifiesto
 clasp push
 clasp open                        # abre el editor en el navegador
 ```
 
-### 3. Configurar en el editor de Apps Script
+#### 3. Configurar en el editor de Apps Script
 1. **Configuración del proyecto (⚙️) → Propiedades del script** → agrega `TELEGRAM_TOKEN` con el token del bot.
 2. En el editor, selecciona la función **`setup`** → Ejecutar → acepta los permisos. En el registro verás el link de la hoja y tu **código de vinculación**.
 3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Quién tiene acceso: Cualquier usuario*. Copia la URL que termina en `/exec` y guárdala como propiedad `WEBAPP_URL`.
@@ -48,7 +92,7 @@ clasp open                        # abre el editor en el navegador
 5. Ejecuta **`instalarTriggers`**.
 6. En Telegram, escríbele a tu bot: `/vincular <código>`. Desde ese momento solo responde a tu chat.
 
-### 4. Análisis de correos con IA (cuenta personal)
+#### 4. Análisis de correos con IA (cuenta personal)
 Las reglas fijas reconocen alertas del banco, extractos, suscripciones, invitaciones y boletines. Lo que no encaja en ninguna regla lo analiza **Gemini** (Google AI Studio, nivel gratuito) para decidir si es importante y qué hay que hacer.
 1. Crea una API key en https://aistudio.google.com/apikey con tu cuenta personal.
 2. Guárdala en las Propiedades del script como `GEMINI_API_KEY`.
@@ -66,7 +110,7 @@ La misma API key enciende la **conversación**: lo que escribas sin comando (y q
 > - El cuerpo se guarda en la hoja solo mientras el correo espera en cola.
 > - Para apagar la IA: `Config` → `IA_ACTIVA` = `no`.
 
-### 5. Conectar la cuenta de trabajo (miempresa.co): satélite
+#### 5. Conectar la cuenta de trabajo: satélite
 El bot principal corre en tu cuenta personal y no puede leer otra cuenta de Google. Por eso se instala un **satélite** (`satelite/Satelite.js`) que corre **dentro de tu cuenta de trabajo** y cada 10 minutos le envía al bot:
 - tus reuniones (desde ayer hasta 14 días adelante; solo título, horario y link),
 - tus correos nuevos: **solo remitente, asunto y fecha**, nunca el cuerpo.
@@ -82,7 +126,7 @@ Pasos (una sola vez):
 1. En el editor del **bot principal**, ejecuta `datosSatelite` (en `Sync.gs`) y copia la `SYNC_URL` que aparece en el registro.
 2. Inicia sesión en clasp con tu cuenta **de trabajo**. Queda en un perfil aparte, así que tu sesión personal no se toca:
    ```bash
-   npm run satelite:login     # si se abre una ventana de navegador nueva, entra con @miempresa.co
+   npm run satelite:login     # si se abre una ventana de navegador nueva, entra con tu cuenta de trabajo
    npm run satelite:crear     # crea el proyecto en tu cuenta de trabajo y sube el código
    npm run satelite:abrir
    ```
@@ -91,12 +135,12 @@ Pasos (una sola vez):
 
 Para actualizar el satélite más adelante: `npm run satelite:push`.
 
-### 6. Jira
+#### 6. Jira
 1. Crea un token en https://id.atlassian.com/manage-profile/security/api-tokens. Vence: el bot te avisa cuando deje de funcionar.
 2. En las Propiedades del script del bot principal agrega `JIRA_SITIO` (p. ej. `miempresa.atlassian.net`), `JIRA_CORREO` (tu correo de Atlassian) y `JIRA_TOKEN`.
 3. Prueba con `/jira` en Telegram. Solo se vuelven pendientes las actividades en **En curso**. Para cambiar los estados, edita `Config` → `JIRA_ESTADOS` (p. ej. `En curso, En revisión`; `todos` = todas las abiertas). Para cambiar qué se consulta, edita `JIRA_JQL`.
 
-### 7. Registrar tus cuentas
+#### 7. Registrar tus cuentas
 En Telegram:
 ```
 /nuevacuenta bancolombia ahorros 1234 2300000
@@ -111,6 +155,8 @@ Me quedan 80.000 en efectivo, tengo 0 pesos en nequi, nu y bbva, debo en la tarj
 ```
 Las tarjetas de crédito quedan como cuentas `TC` con saldo negativo (lo que debes): las compras aumentan la deuda y los pagos la reducen. Si un banco tiene cuenta y TC, agrega los últimos 4 dígitos en la hoja para que las alertas por correo caigan en la correcta.
 
+</details>
+
 ## Uso diario
 
 ```
@@ -118,7 +164,7 @@ Las tarjetas de crédito quedan como cuentas `TC` con saldo negativo (lo que deb
 /agenda trabajo semana           reuniones de los próximos 7 días
 /tarea Enviar cotización al forwarder viernes 10am
 /pendientes                      /hecho 3 5
-/gasto 45000 almuerzo #nu        o en texto libre: "gasté 45 mil en almuerzo"
+/gasto 45000 almuerzo #nu        o en texto libre: "compra por nequi 45000", "almuerzo 25k con la nu"
 "tengo 200 mil en nequi y debo 1.5 millones en la TC Rappi"   actualiza varios saldos
 /ingreso 2 millones nómina
 /ajustar ahorros 2310000         cuando veas el saldo real en la app del banco
@@ -129,7 +175,9 @@ Las tarjetas de crédito quedan como cuentas `TC` con saldo negativo (lo que deb
 /reunion Comité el jueves 3pm    crea el evento en tu calendario personal
 /informe                         gastos del mes por categoría vs. mes anterior
 /metricas                        qué tan acertado está el análisis (👍👎 de cada aviso)
-/estado                          salud del sistema: triggers, errores, tasa USD, sync
+/estado                          salud del sistema: versión, triggers, errores, tasa USD, sync
+/configurar                      IA, cuentas, trabajo, Jira y preferencias con botones
+/actualizar                      ver si hay versión nueva y cómo instalarla
 /defecto nu                      cuenta por defecto cuando no pones #cuenta
 /desvincular                     quitar este chat (para añadir tablet/PC, /vincular de nuevo)
 "¿qué tengo mañana?"            con GEMINI_API_KEY, también entiendo preguntas normales
