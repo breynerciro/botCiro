@@ -27,6 +27,16 @@ function clasp(args, cwd) {
   return execFileSync('clasp', args, { cwd, encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] });
 }
 
+/** Como clasp(), pero devuelve la salida aunque termine con error (clasp versions falla si no hay versiones). */
+function claspSalida(args, cwd) {
+  console.log(`$ clasp ${args.join(' ')}   (${path.relative(RAIZ, cwd) || '.'})`);
+  try {
+    return execFileSync('clasp', args, { cwd, encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
+  } catch (err) {
+    return String(err.stdout || '') + String(err.stderr || '');
+  }
+}
+
 function reemplazar(texto, antes, despues, archivo) {
   if (!texto.includes(antes)) throw new Error(`No encontré "${antes}" en ${archivo}`);
   return texto.replace(antes, despues);
@@ -60,7 +70,7 @@ function build(numero) {
 }
 
 function siguienteNumero() {
-  const salida = clasp(['versions'], BUILD);
+  const salida = claspSalida(['versions'], BUILD);
   const numeros = salida.split('\n').map((l) => /^\s*(\d+)\s+-/.exec(l)).filter(Boolean).map((m) => Number(m[1]));
   if (!numeros.length && !/No deployed versions/i.test(salida)) {
     throw new Error('No pude leer las versiones de la biblioteca:\n' + salida);
