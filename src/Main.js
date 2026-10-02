@@ -58,13 +58,24 @@ function procesarUpdate_(update) {
     registrarError_('comando', err);
     respuesta = '⚠️ ' + esc_(err.message);
   }
-  if (respuesta) enviar_(respuesta, chatId);
+  enviarRespuesta_(respuesta, chatId);
+}
+
+/** Texto de una respuesta: los comandos devuelven un string o { texto, teclado } (con botones). */
+function textoRespuesta_(r) {
+  return r && typeof r === 'object' ? String(r.texto || '') : String(r || '');
+}
+
+function enviarRespuesta_(r, chatId) {
+  const texto = textoRespuesta_(r);
+  if (texto) enviar_(texto, chatId, r && typeof r === 'object' ? r.teclado : null);
 }
 
 /**
  * Botones inline: cerrar pendiente (#id), ejecutar un comando o dar feedback del análisis.
  *   hecho:3   → cierra el pendiente #3
  *   cmd:p     → ejecuta /p (lista de pendientes) y la manda al chat
+ *   mov:ab12:3 → registra el gasto/ingreso en borrador ab12 en la cuenta 3
  *   fb:ok:12  → el correo 12 estaba bien clasificado (fb:mal = mal clasificado)
  */
 function procesarCallback_(cb) {
@@ -77,9 +88,12 @@ function procesarCallback_(cb) {
       texto = conBloqueo_(() => completarTarea_(datos.slice(6)));
     } else if (datos.indexOf('cmd:') === 0) {
       const nombre = datos.slice(4).replace(/[^a-z]/g, '');
-      texto = conBloqueo_(() => responder_('/' + nombre)) || '';
-      if (texto) enviar_(texto, chatId);
+      enviarRespuesta_(conBloqueo_(() => responder_('/' + nombre)), chatId);
       texto = '✅ Enviado';
+    } else if (datos.indexOf('mov:') === 0) {
+      const partes = datos.split(':');
+      enviarRespuesta_(conBloqueo_(() => confirmarCuentaBorrador_(partes[1], partes[2])), chatId);
+      texto = '✅ Registrado';
     } else if (datos.indexOf('fb:') === 0) {
       const partes = datos.split(':');
       texto = conBloqueo_(() => registrarFeedback_(partes[2], partes[1] === 'ok' ? 'ok' : 'mal'));

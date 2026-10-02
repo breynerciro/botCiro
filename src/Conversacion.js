@@ -282,8 +282,12 @@ function conversar_(texto) {
   try {
     const acciones = r && r.tipo === 'funcion' ? r.acciones.filter((a) => HERRAMIENTAS_IA_[a.funcion]) : [];
     if (acciones.length) {
-      const salida = acciones.map((a) => String(HERRAMIENTAS_IA_[a.funcion].ejecutar(a.argumentos))).join('\n\n');
-      guardarMemoria_(texto, salida);
+      // Una acción puede responder con botones ({ texto, teclado }), p. ej. elegir la cuenta de un gasto.
+      const salidas = acciones.map((a) => HERRAMIENTAS_IA_[a.funcion].ejecutar(a.argumentos));
+      const conBotones = salidas.find((x) => x && typeof x === 'object' && x.teclado);
+      const textoSalida = salidas.map(textoRespuesta_).join('\n\n');
+      const salida = conBotones ? { texto: textoSalida, teclado: conBotones.teclado } : textoSalida;
+      guardarMemoria_(texto, textoSalida);
       return salida;
     }
     if (r && r.tipo === 'respuesta' && r.respuesta) {

@@ -48,6 +48,23 @@ test('cuentas, gastos, ingresos y ajuste de saldo', () => {
   assert.match(env.decir('/movimientos 2'), /taxi/);
 });
 
+test('gasto en texto natural: cuenta mencionada y botones para elegir', () => {
+  const env = preparar();
+  env.decir('/nuevacuenta nequi principal 1111 100000');
+  env.decir('/nuevacuenta bancolombia ahorros 1234 500000');
+  assert.match(env.decir('compra por nequi 40000'), /−\$40\.000 compra[\s\S]*Nequi principal[\s\S]*\$60\.000/);
+  assert.match(env.decir('pagué 35.000 en Rappi'), /¿De qué cuenta salió −\$35\.000 Rappi/, 'Rappi no es cuenta: pregunta');
+
+  const teclado = env.enviados[0].reply_markup.inline_keyboard.flat();
+  const boton = teclado.find((b) => /Bancolombia/.test(b.text));
+  env.enviados.length = 0;
+  env.ctx.doPost({
+    parameter: { key: env.props.WEBHOOK_SECRET },
+    postData: { contents: JSON.stringify({ update_id: 5000, callback_query: { id: 'cb', data: boton.callback_data, message: { chat: { id: 777 } } } }) },
+  });
+  assert.match(env.enviados.map((m) => m.text).join('\n'), /−\$35\.000 Rappi[\s\S]*\$465\.000/);
+});
+
 test('perfiles y pendientes', () => {
   const env = preparar();
   assert.match(env.decir('/tarea Llamar al banco mañana'), /#1 \(personal\) Llamar al banco · vence/);

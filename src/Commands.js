@@ -129,7 +129,8 @@ function responder_(texto) {
 }
 
 function responderTextoLibre_(texto) {
-  const r = parseTextoLibre_(texto, leer_('Cuentas').map((c) => c.banco));
+  const cuentas = leer_('Cuentas');
+  const r = parseTextoLibre_(texto, cuentas.map((c) => c.banco), cuentas.map((c) => c.alias).filter(Boolean));
   if (r) {
     if (r.tipo === 'tarea') return crearTarea_(r.texto, perfilActivo_());
     if (r.tipo === 'saldos') return aplicarSaldosLibre_(r.items, r.sinAsignar, perfilActivo_());
