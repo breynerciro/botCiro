@@ -13,25 +13,35 @@ const ESQUEMA_CONVERSACION_ = {
   type: 'OBJECT',
   properties: {
     tipo: { type: 'STRING', enum: ['funcion', 'respuesta'] },
-    funcion: { type: 'STRING', nullable: true },
     respuesta: { type: 'STRING', nullable: true },
-    argumentos: {
-      type: 'OBJECT',
+    acciones: {
+      type: 'ARRAY',
       nullable: true,
-      properties: {
-        perfil: { type: 'STRING', nullable: true },
-        rango: { type: 'STRING', nullable: true },
-        texto: { type: 'STRING', nullable: true },
-        titulo: { type: 'STRING', nullable: true },
-        fecha: { type: 'STRING', nullable: true },
-        hora: { type: 'STRING', nullable: true },
-        duracion: { type: 'NUMBER', nullable: true },
-        monto: { type: 'NUMBER', nullable: true },
-        cuenta: { type: 'STRING', nullable: true },
-        descripcion: { type: 'STRING', nullable: true },
-        ids: { type: 'STRING', nullable: true },
-        consulta: { type: 'STRING', nullable: true },
-        mes: { type: 'STRING', nullable: true },
+      items: {
+        type: 'OBJECT',
+        properties: {
+          funcion: { type: 'STRING' },
+          argumentos: {
+            type: 'OBJECT',
+            nullable: true,
+            properties: {
+              perfil: { type: 'STRING', nullable: true },
+              rango: { type: 'STRING', nullable: true },
+              texto: { type: 'STRING', nullable: true },
+              titulo: { type: 'STRING', nullable: true },
+              fecha: { type: 'STRING', nullable: true },
+              hora: { type: 'STRING', nullable: true },
+              duracion: { type: 'NUMBER', nullable: true },
+              monto: { type: 'NUMBER', nullable: true },
+              cuenta: { type: 'STRING', nullable: true },
+              descripcion: { type: 'STRING', nullable: true },
+              ids: { type: 'STRING', nullable: true },
+              consulta: { type: 'STRING', nullable: true },
+              mes: { type: 'STRING', nullable: true },
+            },
+          },
+        },
+        required: ['funcion'],
       },
     },
   },
@@ -57,12 +67,16 @@ const HERRAMIENTAS_IA_ = {
     ejecutar: (x) => listarPendientes_(x.perfil ? [perfilONulo_(x.perfil)] : PERFILES),
   },
   crear_tarea: {
-    desc: 'Crea un pendiente nuevo. argumentos: texto (qué hay que hacer), perfil, fecha en texto libre ("viernes", "15/10", "mañana")',
-    ejecutar: (x) => crearTarea_(x.texto || '', x.perfil || perfilActivo_()),
+    desc: 'Crea un pendiente nuevo. argumentos: texto (qué hay que hacer, sin la fecha), perfil, fecha ("lunes", "15/10", "mañana"), hora ("10:00")',
+    ejecutar: (x) => crearTarea_([x.texto, x.fecha, x.hora].filter(Boolean).join(' '), perfilONulo_(x.perfil || '') || perfilActivo_()),
   },
   cerrar_tarea: {
-    desc: 'Cierra pendientes por número. argumentos: ids ("3 5")',
+    desc: 'Cierra (marca como hecho) pendientes por número. argumentos: ids ("3 5")',
     ejecutar: (x) => completarTarea_(x.ids || x.texto || ''),
+  },
+  reprogramar_tarea: {
+    desc: 'Cierra un pendiente y crea uno igual (mismo texto) con nueva fecha/hora: "mover", "aplazar", "pasar para", "cerrar el 3 y crear el mismo para...". argumentos: ids, fecha, hora',
+    ejecutar: (x) => reprogramarTarea_(x.ids || x.texto || '', [x.fecha, x.hora].filter(Boolean).join(' ')),
   },
   gasto: {
     desc: 'Registra un gasto en pesos. argumentos: monto (número en pesos), descripcion (qué fue), cuenta (alias, opcional), perfil',
@@ -130,9 +144,16 @@ function contextoConversacion_() {
   }).filter(Boolean);
   if (cuentasTxt.length) lineas.push('Saldos: ' + cuentasTxt.join(' | '));
 
+  lineas.push('Hoy es ' + fmtDia_(new Date(), 'dd/MM/yyyy') + ', ' + fmtFecha_(new Date(), 'HH:mm') + '.');
+
   const abiertos = pendientes.filter((t) => t.estado === 'abierto');
   const vencidos = abiertos.filter((t) => t.fecha_limite && inicioDia_(new Date(t.fecha_limite)) < hoy).length;
   lineas.push(`Pendientes abiertos: ${abiertos.length}` + (vencidos ? ` (${vencidos} vencidos)` : ''));
+  // Solo el texto de los personales: lo de trabajo nunca pasa por la IA (solo número y perfil).
+  const lista = abiertos.slice(0, 30).map((t) =>
+    `#${t.id} ${t.perfil}` + (t.perfil === 'personal' ? ` "${String(t.texto).slice(0, 60)}"` : '') + (t.fecha_limite ? ` vence ${fmtVence_(t.fecha_limite)}` : '')
+  );
+  if (lista.length) lineas.push('Lista: ' + lista.join('; '));
 
   const agenda = PERFILES.map((p) => {
     const evs = eventosPerfil_(p, hoy, sumarDias_(hoy, 2)) || [];
@@ -173,11 +194,13 @@ const INSTRUCCION_CONVERSACION_ = [
   '',
   'Responde con el JSON pedido. Elige:',
   '- tipo="funcion" cuando la petición requiera hacer algo o pedir datos detallados (crear, cerrar, registrar, buscar, informes).',
+  '  Pon en "acciones" una entrada por cada cosa pedida, en orden (máximo 3). Ej: "cierra el 3 y crea otro para el viernes" = 2 acciones.',
+  '- Si piden cerrar un pendiente y crear "el mismo"/"otro igual" con otra fecha, o moverlo/aplazarlo, usa UNA acción reprogramar_tarea.',
   '- tipo="respuesta" cuando puedas contestar con el contexto dado o sea una conversación (saludos, explicaciones, dudas sobre cómo usar el bot).',
   '- Si te piden algo que no está en las funciones, responde tipo="respuesta" explicando qué sí puedes hacer.',
   '- Si te piden redactar un correo o un mensaje para enviarlo, escríbelo tú en el campo respuesta (nunca se envía solo; tú lo copias y pegas).',
   '- Si falta un dato obligatorio (por ejemplo el monto de un gasto), responde tipo="respuesta" preguntándolo.',
-  '- En argumentos pasa solo lo que el usuario dijo, sin rellenar: fechas y horas en texto ("viernes", "15:00").',
+  '- En argumentos pasa solo lo que el usuario dijo, sin rellenar: fechas en texto ("lunes", "15/10") y horas en formato 24 h ("10:00", "15:30").',
 ].join('\n');
 
 function textoDeHerramientas_() {
@@ -228,11 +251,15 @@ function llamadaConversacion_(texto) {
   } catch (e) {
     throw new Error('Respuesta de IA no es JSON válido');
   }
+  // Formato anterior (una sola función) también se acepta.
+  const crudas = Array.isArray(d.acciones) ? d.acciones : d.funcion ? [{ funcion: d.funcion, argumentos: d.argumentos }] : [];
   return {
     tipo: d.tipo === 'funcion' ? 'funcion' : 'respuesta',
-    funcion: d.funcion ? String(d.funcion) : null,
     respuesta: d.respuesta ? String(d.respuesta) : null,
-    argumentos: d.argumentos && typeof d.argumentos === 'object' ? d.argumentos : {},
+    acciones: crudas
+      .filter((a) => a && a.funcion)
+      .slice(0, 3)
+      .map((a) => ({ funcion: String(a.funcion), argumentos: a.argumentos && typeof a.argumentos === 'object' ? a.argumentos : {} })),
   };
 }
 
@@ -253,8 +280,9 @@ function conversar_(texto) {
     return '⚠️ No pude procesar tu mensaje con la IA. Usa los comandos (/ayuda) o inténtalo otra vez.';
   }
   try {
-    if (r && r.tipo === 'funcion' && r.funcion && HERRAMIENTAS_IA_[r.funcion]) {
-      const salida = String(HERRAMIENTAS_IA_[r.funcion].ejecutar(r.argumentos || {}));
+    const acciones = r && r.tipo === 'funcion' ? r.acciones.filter((a) => HERRAMIENTAS_IA_[a.funcion]) : [];
+    if (acciones.length) {
+      const salida = acciones.map((a) => String(HERRAMIENTAS_IA_[a.funcion].ejecutar(a.argumentos))).join('\n\n');
       guardarMemoria_(texto, salida);
       return salida;
     }
