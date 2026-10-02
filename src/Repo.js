@@ -7,8 +7,8 @@ let SS_ = null;
 function ss_() {
   if (!SS_) {
     const id = prop_('SPREADSHEET_ID');
-    if (!id) throw new Error('Falta SPREADSHEET_ID: ejecuta setup() primero.');
-    SS_ = SpreadsheetApp.openById(id);
+    SS_ = id ? SpreadsheetApp.openById(id) : hojaContenedor_();
+    if (!SS_) throw new Error('Falta SPREADSHEET_ID: ejecuta setup() primero.');
   }
   return SS_;
 }
@@ -104,7 +104,7 @@ let PROFUNDIDAD_BLOQUEO_ = 0;
 /** Serializa operaciones que escriben en la hoja (webhook y triggers pueden coincidir). Reentrante. */
 function conBloqueo_(fn) {
   if (PROFUNDIDAD_BLOQUEO_ > 0) return fn();
-  const lock = LockService.getScriptLock();
+  const lock = lock_();
   lock.waitLock(30000);
   PROFUNDIDAD_BLOQUEO_++;
   try {

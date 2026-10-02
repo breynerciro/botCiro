@@ -65,6 +65,8 @@ function estadoSistema_() {
   const d = diagnosticar_();
   const ahora = Date.now();
   const lineas = ['🩺 <b>Estado del sistema</b>'];
+  const nueva = hayActualizacion_();
+  lineas.push(`• Versión: ${esc_(VERSION)}` + (nueva ? ` · 🆕 disponible ${esc_(nueva.version)} (/actualizar)` : ''));
 
   lineas.push('• Triggers: ' + (d.triggers.length ? d.triggers.join(', ') : '<b>ninguno</b> ⚠️'));
 

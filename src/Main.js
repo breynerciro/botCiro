@@ -27,7 +27,7 @@ function doPost(e) {
 
 function procesarUpdate_(update) {
   // Telegram puede reenviar el mismo update; se procesa una sola vez.
-  const cache = CacheService.getScriptCache();
+  const cache = cache_();
   const claveCache = 'upd_' + update.update_id;
   if (cache.get(claveCache)) return;
   cache.put(claveCache, '1', 21600);
@@ -42,10 +42,12 @@ function procesarUpdate_(update) {
   if (autorizados.indexOf(chatId) < 0) {
     // /vincular <código> agrega este chat: sirve para vincular otro dispositivo
     // (tablet, PC) con el mismo código. Sin el código, cualquier chat se ignora.
+    // El botón "Abrir en Telegram" del instalador envía "/start <código>".
     const codigo = prop_('CODIGO_VINCULACION');
-    if (codigo && msg.text.trim() === '/vincular ' + codigo) {
+    const t = msg.text.trim();
+    if (codigo && (t === '/vincular ' + codigo || t === '/start ' + codigo)) {
       setProp_('CHAT_ID', autorizados.concat([chatId]).join(','));
-      enviar_('✅ Este chat quedó vinculado. Escribe /ayuda para ver lo que puedo hacer.', chatId);
+      enviarRespuesta_(bienvenida_(autorizados.length === 0), chatId);
     }
     return;
   }
@@ -59,6 +61,17 @@ function procesarUpdate_(update) {
     respuesta = '⚠️ ' + esc_(err.message);
   }
   enviarRespuesta_(respuesta, chatId);
+}
+
+/** Mensaje al vincular un chat. El primero recibe la guía de configuración. */
+function bienvenida_(primerChat) {
+  if (!primerChat) return '✅ Este chat quedó vinculado. Escribe /ayuda para ver lo que puedo hacer.';
+  return {
+    texto:
+      `👋 ¡Hola! Soy <b>${esc_(nombreBot_())}</b>. Ya quedé conectado a tu Google.\n\n` +
+      'Para empezar, configura lo que quieras usar (todo desde aquí, sin tocar la hoja):',
+    teclado: { inline_keyboard: [[{ text: '⚙️ Configurar', callback_data: 'cmd:configurar' }, { text: '📖 Ayuda', callback_data: 'cmd:ayuda' }]] },
+  };
 }
 
 /** Texto de una respuesta: los comandos devuelven un string o { texto, teclado } (con botones). */

@@ -47,6 +47,7 @@ function scheduler() {
     cadaMinutos_('SALUD', 1440, revisarSalud_);
     cadaMinutos_('PURGA', 1440, () => conBloqueo_(() => purgarDatos_()));
     cadaMinutos_('BACKUP', 10080, backupDatos_);
+    cadaMinutos_('VERSION', 1440, revisarVersion_);
   } catch (err) {
     registrarError_('scheduler', err);
   }

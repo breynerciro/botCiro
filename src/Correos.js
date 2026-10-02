@@ -169,7 +169,7 @@ function aplicarClasificacion_(c, res, origen) {
 /** Procesa la cola: clasifica, crea pendientes y envía un solo aviso agrupado. */
 function procesarColaCorreos_() {
   // Evita que dos ejecuciones (trigger y /revisar) procesen la misma cola a la vez.
-  const cache = CacheService.getScriptCache();
+  const cache = cache_();
   if (cache.get('procesando_cola')) return 0;
   cache.put('procesando_cola', '1', 300);
   try {

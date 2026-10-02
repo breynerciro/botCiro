@@ -29,6 +29,7 @@ const COMANDOS_META_ = [
   { cmd: 'jira', alias: 'j', grupo: 'Correos', desc: 'revisar tus actividades en Jira ahora', uso: '/jira', fn: () => cmdJira_() },
   { cmd: 'revisar', alias: 'rv', grupo: 'Correos', desc: 'revisar Gmail ahora', uso: '/revisar', fn: () => cmdRevisar_() },
   { cmd: 'estado', alias: 'e', grupo: 'Otros', desc: 'salud del sistema: triggers, errores y sincronizaciones', uso: '/estado', fn: () => estadoSistema_() },
+  { cmd: 'actualizar', alias: 'up', grupo: 'Otros', desc: 'ver si hay una versión nueva y cómo instalarla', uso: '/actualizar', fn: () => cmdActualizar_() },
   { cmd: 'desvincular', alias: 'dv', grupo: 'Otros', desc: 'quitar este chat de los autorizados', uso: '/desvincular', fn: () => cmdDesvincular_() },
   { cmd: 'vincular', alias: '', grupo: 'Otros', desc: 'vincular este chat con el código', uso: '/vincular 123456', fn: (a) => cmdVincular_(a) },
   { cmd: 'ayuda', alias: '?', grupo: 'Otros', desc: 'ver todos los comandos', uso: '/ayuda', fn: () => ayuda_() },

@@ -112,7 +112,7 @@ function revisarReuniones() {
     const minutos = Number(getConfig_('MINUTOS_RECORDATORIO', '10')) || 10;
     const ahora = new Date();
     const hasta = new Date(ahora.getTime() + minutos * 60000);
-    const cache = CacheService.getScriptCache();
+    const cache = cache_();
     PERFILES.forEach((p) => {
       (eventosPerfil_(p, ahora, hasta) || []).forEach((ev) => {
         if (ev.todoElDia || ev.inicio < ahora) return;

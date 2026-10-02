@@ -148,8 +148,8 @@ function escanearJira() {
   } catch (err) {
     registrarError_('escanearJira', err);
     // Avisar una vez al día si las credenciales fallan.
-    if (err.credenciales && !CacheService.getScriptCache().get('jira_aviso')) {
-      CacheService.getScriptCache().put('jira_aviso', '1', 21600);
+    if (err.credenciales && !cache_().get('jira_aviso')) {
+      cache_().put('jira_aviso', '1', 21600);
       enviar_('⚠️ ' + esc_(err.message) + '. Genera uno nuevo y actualiza JIRA_TOKEN en las propiedades del script.');
     }
   }

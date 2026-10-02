@@ -8,7 +8,8 @@
  *   SYNC_SECRET         secreto que usa el satélite de la otra cuenta (lo genera setup())
  *   CODIGO_VINCULACION  código para /vincular tu chat (lo genera setup())
  *   CHAT_ID             chat autorizado (se guarda al vincular)
- *   WEBAPP_URL          opcional: URL /exec del despliegue si getService().getUrl() no la da bien
+ *   WEBAPP_URL          URL /exec del despliegue (la guarda el instalador o registrarWebhook())
+ *   BOT_NOMBRE, BOT_USUARIO   nombre y @usuario del bot (los guarda el instalador con getMe)
  *   GEMINI_API_KEY      API key de Google AI Studio (análisis de correos personales)
  *   JIRA_SITIO, JIRA_CORREO, JIRA_TOKEN   acceso a Jira Cloud
  */
@@ -50,15 +51,15 @@ const CONFIG_INICIAL = [
 ];
 
 function prop_(clave) {
-  return PropertiesService.getScriptProperties().getProperty(clave);
+  return props_().getProperty(clave);
 }
 
 function setProp_(clave, valor) {
-  PropertiesService.getScriptProperties().setProperty(clave, String(valor));
+  props_().setProperty(clave, String(valor));
 }
 
 function borrarProp_(clave) {
-  PropertiesService.getScriptProperties().deleteProperty(clave);
+  props_().deleteProperty(clave);
 }
 
 let CONFIG_CACHE_ = null;
@@ -79,6 +80,11 @@ function setConfig_(clave, valor) {
   if (fila) actualizar_('Config', fila._fila, { valor: valor });
   else agregar_('Config', { clave: clave, valor: valor, nota: '' });
   CONFIG_CACHE_ = null;
+}
+
+/** Nombre que cada persona le puso a su bot en @BotFather (se guarda al instalar). */
+function nombreBot_() {
+  return prop_('BOT_NOMBRE') || 'botCiro';
 }
 
 function perfilActivo_() {

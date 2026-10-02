@@ -45,7 +45,7 @@ function sincronizarEventos_(perfil, eventos) {
 /** Imprime el valor que debes poner como SYNC_URL en el script satélite. */
 function datosSatelite() {
   setup();
-  const url = prop_('WEBAPP_URL') || ScriptApp.getService().getUrl();
+  const url = urlWebApp_();
   console.log('Copia este valor como propiedad SYNC_URL en el satélite (no lo compartas):');
   console.log(url + '?sync=' + prop_('SYNC_SECRET'));
 }

@@ -1,11 +1,12 @@
 // Simulación mínima en memoria de los servicios de Apps Script usados por el bot.
 const fs = require('node:fs');
 const path = require('node:path');
-const { cargarGas } = require('./helpers');
+const { cargarConTransformacion } = require('./helpers');
 
 // bandeja: correos en el inbox personal { id, hilo, de, para, asunto, cuerpo, fecha, listaBaja }
 // gemini(payload) y jira(url) devuelven { codigo, cuerpo } para simular esas APIs.
-function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null, jira = null, telegram = null } = {}) {
+// transformar(nombre, codigo): modifica el código antes de cargarlo (tests del build de biblioteca).
+function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null, jira = null, telegram = null, transformar = null } = {}) {
   const props = {};
   const llamadas = { gemini: [], jira: [] };
   const cache = {};
@@ -183,9 +184,9 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
   }
 
   const archivos = fs.readdirSync(path.join(__dirname, '..', 'src')).filter((f) => f.endsWith('.js')).sort();
-  const ctx = cargarGas(...archivos);
+  const ctx = cargarConTransformacion(archivos, transformar);
   Object.assign(ctx, globals);
-  return { ctx, props, enviados, tgLlamadas, calendario, triggers, hojas, llamadas };
+  return { ctx, props, enviados, tgLlamadas, calendario, triggers, hojas, llamadas, cache, globals };
 }
 
 module.exports = { crearEntorno };

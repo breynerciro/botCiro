@@ -105,7 +105,7 @@ function registrarEnCuenta_(tipo, datos, cuenta) {
  */
 function preguntarCuenta_(tipo, datos, propias) {
   const borrador = Utilities.getUuid().replace(/-/g, '').slice(0, 10);
-  CacheService.getScriptCache().put('mov_' + borrador, JSON.stringify({ tipo: tipo, monto: datos.monto, descripcion: datos.descripcion }), 600);
+  cache_().put('mov_' + borrador, JSON.stringify({ tipo: tipo, monto: datos.monto, descripcion: datos.descripcion }), 600);
   const botones = propias.map((c) => ({ text: nombreCuenta_(c), callback_data: `mov:${borrador}:${c.id}` }));
   const filas = [];
   for (let i = 0; i < botones.length; i += 2) filas.push(botones.slice(i, i + 2));
@@ -120,7 +120,7 @@ function preguntarCuenta_(tipo, datos, propias) {
 
 /** Botón de preguntarCuenta_: registra el borrador en la cuenta elegida. */
 function confirmarCuentaBorrador_(borrador, cuentaId) {
-  const cache = CacheService.getScriptCache();
+  const cache = cache_();
   const crudo = cache.get('mov_' + borrador);
   if (!crudo) return '⌛ Ese registro ya venció. Envíalo de nuevo.';
   const cuenta = leer_('Cuentas').find((c) => String(c.id) === String(cuentaId));

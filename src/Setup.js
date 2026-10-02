@@ -6,14 +6,18 @@
  *   4. instalarTriggers()  activa escaneo de Gmail, recordatorios y resumen diario
  */
 
-function setup() {
-  const props = PropertiesService.getScriptProperties();
+/** Pestaña de bienvenida de la plantilla: setup() no la borra. */
+const HOJA_INICIO_ = 'Inicio';
 
+function setup() {
+  const props = props_();
+
+  // Copia de la plantilla: los datos van en la misma hoja. Proyecto standalone: crea una hoja nueva.
   let ss;
   if (props.getProperty('SPREADSHEET_ID')) {
     ss = SpreadsheetApp.openById(props.getProperty('SPREADSHEET_ID'));
   } else {
-    ss = SpreadsheetApp.create('botCiro · datos');
+    ss = hojaContenedor_() || SpreadsheetApp.create(nombreBot_() + ' · datos');
     props.setProperty('SPREADSHEET_ID', ss.getId());
   }
   SS_ = ss;
@@ -33,7 +37,7 @@ function setup() {
   col('Movimientos', 'monto').setNumberFormat('$#,##0');
 
   ss.getSheets()
-    .filter((sh) => !ESQUEMAS[sh.getName()])
+    .filter((sh) => !ESQUEMAS[sh.getName()] && sh.getName() !== HOJA_INICIO_)
     .forEach((sh) => ss.deleteSheet(sh));
 
   const existentes = new Set(leer_('Config').map((r) => r.clave));
@@ -51,8 +55,8 @@ function setup() {
 }
 
 function registrarWebhook() {
-  let url = prop_('WEBAPP_URL') || ScriptApp.getService().getUrl();
-  if (!url || !/\/exec$/.test(url)) {
+  const url = urlWebApp_();
+  if (!url) {
     throw new Error('No encontré la URL /exec del despliegue. Despliega como aplicación web y guarda la URL en la propiedad WEBAPP_URL.');
   }
   tg_('setWebhook', {
