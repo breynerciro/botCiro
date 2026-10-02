@@ -5,11 +5,14 @@ const { cargarGas } = require('./helpers');
 
 // bandeja: correos en el inbox personal { id, hilo, de, para, asunto, cuerpo, fecha, listaBaja }
 // gemini(payload) y jira(url) devuelven { codigo, cuerpo } para simular esas APIs.
-function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null, jira = null } = {}) {
+function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null, jira = null, telegram = null } = {}) {
   const props = {};
   const llamadas = { gemini: [], jira: [] };
   const cache = {};
   const enviados = [];
+  const tgLlamadas = [];
+  const calendario = [];
+  const triggers = [];
   const hojas = {};
 
   const crearHoja = (nombre) => {
@@ -20,6 +23,7 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
       appendRow: (f) => filas.push(f.slice()),
       getRange: (fila, col, nf, nc) => {
         const r = {
+          getValue: () => (filas[fila - 1] || [])[col - 1],
           setValue: (v) => {
             while (filas.length < fila) filas.push([]);
             filas[fila - 1][col - 1] = v;
@@ -56,6 +60,7 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
     insertSheet: (n) => crearHoja(n),
     getSheets: () => Object.values(hojas),
     deleteSheet: (sh) => delete hojas[sh.getName()],
+    copy: (nombre) => ({ getId: () => 'copia1', getUrl: () => 'https://docs.google.com/spreadsheets/d/copia1', nombre }),
   };
   crearHoja('Hoja 1');
 
@@ -65,6 +70,7 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
       getScriptProperties: () => ({
         getProperty: (k) => (k in props ? props[k] : null),
         setProperty: (k, v) => (props[k] = String(v)),
+        deleteProperty: (k) => delete props[k],
       }),
     },
     CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => (cache[k] = v), remove: (k) => delete cache[k] }) },
@@ -81,6 +87,7 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
     Utilities: {
       formatDate: (d, tz, patron) =>
         patron
+          .replace('yyyy', String(d.getFullYear()))
           .replace('dd', pad(d.getDate()))
           .replace('MM', pad(d.getMonth() + 1))
           .replace('HH', pad(d.getHours()))
@@ -104,7 +111,13 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
           return respuesta(r.codigo, r.cuerpo);
         }
         const payload = JSON.parse(opts.payload);
-        if (url.endsWith('/sendMessage')) enviados.push(payload);
+        const metodo = url.split('/').pop();
+        tgLlamadas.push({ metodo: metodo, payload: payload });
+        if (telegram) {
+          const simulado = telegram(metodo, payload);
+          if (simulado) return respuesta(simulado.codigo, simulado.cuerpo);
+        }
+        if (metodo === 'sendMessage') enviados.push(payload);
         return respuesta(200, { ok: true, result: {} });
       },
     },
@@ -112,6 +125,11 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
       GuestStatus: { NO: 'NO' },
       getDefaultCalendar: () => ({
         getEvents: (desde, hasta) => eventos.filter((e) => e.inicio < hasta && e.fin > desde).map(evento),
+        createEvent: (titulo, inicio, fin) => {
+          eventos.push({ titulo, inicio, fin });
+          if (calendario) calendario.push({ titulo, inicio, fin });
+          return evento({ titulo, inicio, fin });
+        },
       }),
       getCalendarById: () => null,
     },
@@ -128,7 +146,26 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
       getThreadById: () => null,
       getUserLabelByName: () => null,
     },
-    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }) },
+    ScriptApp: {
+      getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }),
+      getProjectTriggers: () => triggers.map((f) => ({ getHandlerFunction: () => f })),
+      deleteTrigger: (t) => {
+        const i = triggers.indexOf(t.getHandlerFunction());
+        if (i >= 0) triggers.splice(i, 1);
+      },
+      newTrigger: (f) => {
+        const cadena = {};
+        ['timeBased', 'everyMinutes', 'atHour', 'nearMinute', 'everyDays', 'inTimezone'].forEach((m) =>
+          (cadena[m] = () => cadena)
+        );
+        cadena.create = () => {
+          if (triggers.indexOf(f) < 0) triggers.push(f);
+          return cadena;
+        };
+        return cadena;
+      },
+    },
+    DriveApp: { getFileById: () => ({ setTrashed: () => {} }) },
   };
 
   function evento(e) {
@@ -148,7 +185,7 @@ function crearEntorno({ eventos = [], correos = [], bandeja = [], gemini = null,
   const archivos = fs.readdirSync(path.join(__dirname, '..', 'src')).filter((f) => f.endsWith('.js')).sort();
   const ctx = cargarGas(...archivos);
   Object.assign(ctx, globals);
-  return { ctx, props, enviados, hojas, llamadas };
+  return { ctx, props, enviados, tgLlamadas, calendario, triggers, hojas, llamadas };
 }
 
 module.exports = { crearEntorno };

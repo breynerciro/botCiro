@@ -165,6 +165,32 @@ function limpiarDescripcion_(s) {
     .trim();
 }
 
+/**
+ * Extrae una hora del texto: "3pm", "3:30 p.m.", "15:00", "a las 8" → { hora, minuto, texto }.
+ * Si no hay hora, devuelve el valor por defecto (o { hora: null } si se pasa null).
+ */
+function parseHora_(texto, defecto) {
+  const s = String(texto || '');
+  const porDefecto = () => ({ hora: defecto ? defecto.hora : null, minuto: defecto ? defecto.minuto || 0 : 0, texto: s.trim() });
+  const m = /(?:\ba\s+las?\s+)?(\d{1,2})(?:[:.](\d{1,2}))?\s*(a\.?\s?m\.?|p\.?\s?m\.?|hrs?|horas?)?(?![a-z\d])/i.exec(s);
+  if (!m) return porDefecto();
+  let h = +m[1];
+  const conMinutos = Boolean(m[2]);
+  const min = conMinutos ? +m[2] : 0;
+  const suf = normalizar_(m[3] || '').replace(/[.\s]/g, '');
+  if (min > 59 || h > 23) return porDefecto();
+
+  if (suf === 'pm' && h >= 1 && h <= 12) h = h === 12 ? 12 : h + 12;
+  else if (suf === 'am' && h === 12) h = 0;
+  else if (!suf && !conMinutos) {
+    // Un número suelto solo es hora si viene después de "a las" (evita "BL2" → 2:00).
+    if (!/\ba\s+las?\s*$/i.test(s.slice(0, m.index))) return porDefecto();
+  }
+
+  const resto = (s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim();
+  return { hora: h, minuto: min, texto: resto };
+}
+
 /** Argumentos de /gasto o /ingreso: "50000 mercado #nu" → { monto, descripcion, cuenta } */
 function parseMovimiento_(args) {
   const c = extraerCuenta_(args);

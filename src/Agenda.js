@@ -120,12 +120,54 @@ function revisarReuniones() {
         if (cache.get(clave)) return;
         cache.put(clave, '1', 21600);
         const faltan = Math.max(1, Math.round((ev.inicio - ahora) / 60000));
-        enviar_(
-          `⏰ En ${faltan} min (${p}): <b>${esc_(ev.titulo)}</b>` + (ev.enlace ? `\n<a href="${esc_(ev.enlace)}">Unirse</a>` : '')
-        );
+        const teclado = ev.enlace ? { inline_keyboard: [[{ text: '🔗 Unirse a la reunión', url: ev.enlace }]] } : null;
+        enviar_(`⏰ En ${faltan} min (${p}): <b>${esc_(ev.titulo)}</b>`, null, teclado);
       });
     });
   } catch (err) {
     registrarError_('revisarReuniones', err);
   }
+}
+
+/**
+ * Crea un evento en el calendario del perfil (solo lectura el del satélite).
+ * `fechaTxt` y `horaTxt` vienen del modelo; si no, se leen de la frase del título.
+ */
+function crearEventoDatos_(titulo, fechaTxt, horaTxt, duracion, perfil) {
+  const fuente = fuenteCalendario_(perfil);
+  if (fuente === 'satelite') {
+    return `ℹ️ El calendario de <b>${esc_(perfil)}</b> lo administra el satélite (solo lectura). Créalo en tu calendario de trabajo y aparecerá en /agenda.`;
+  }
+  const frase = [titulo, fechaTxt].filter(Boolean).join(' ');
+  if (!String(frase).trim()) return '¿Qué evento creo? Ej: <code>/reunion Comité el jueves 3pm</code>..';
+  const pf = parseFechaLimite_(frase, new Date());
+  const fecha = pf.fecha || inicioDia_(new Date());
+  let base = pf.texto || String(titulo).trim();
+
+  let hora = null;
+  let minuto = 0;
+  const fuenteHora = horaTxt || base;
+  const ph = parseHora_(fuenteHora, null);
+  if (ph.hora !== null && ph.hora !== undefined) {
+    hora = ph.hora;
+    minuto = ph.minuto || 0;
+    if (!horaTxt) base = ph.texto;
+  }
+  if (hora === null) {
+    return '❓ ¿A qué hora es? Ej: <code>/reunion ' + esc_(base || titulo) + ' 3pm</code>. (hora formato 3pm o 15:00)';
+  }
+
+  const dur = Number(duracion) || Number(getConfig_('DURACION_REUNION', '60')) || 60;
+  const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate(), hora, minuto);
+  const fin = new Date(inicio.getTime() + dur * 60000);
+  const cal = fuente === 'primary' ? CalendarApp.getDefaultCalendar() : CalendarApp.getCalendarById(fuente);
+  if (!cal) return `No encuentro el calendario de ${esc_(perfil)}; revisa <code>CAL_${esc_(perfil)}</code> en Config.`;
+  const nombre = base || String(titulo).trim();
+  cal.createEvent(nombre, inicio, fin);
+  return `📅 Creado: <b>${esc_(nombre)}</b> · ${fmtDia_(inicio)} ${fmtFecha_(inicio, 'HH:mm')}–${fmtFecha_(fin, 'HH:mm')} (${esc_(perfil)})`;
+}
+
+/** /reunion [perfil] Comité el jueves 3pm */
+function crearEventoComando_(args, perfil) {
+  return crearEventoDatos_(String(args || '').trim(), null, null, null, perfil);
 }

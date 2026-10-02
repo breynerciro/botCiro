@@ -63,3 +63,34 @@ function completarTarea_(args) {
   });
   return resultado.join('\n');
 }
+
+/**
+ * Proactividad: avisa los pendientes que vencen hoy o ya vencieron.
+ * Cada tarea se avisa una sola vez (columna `avisado`), así que no hay spam.
+ */
+function avisarVencimientos() {
+  try {
+    if (normalizar_(getConfig_('AVISO_VENCIMIENTOS', 'si')) !== 'si') return;
+    if (!hayChats_()) return;
+    const hoy = inicioDia_(new Date());
+    const porAvisar = abiertos_(PERFILES).filter(
+      (t) => t.fecha_limite && !t.avisado && inicioDia_(new Date(t.fecha_limite)) <= hoy
+    );
+    if (!porAvisar.length) return;
+
+    const vencidos = porAvisar.filter((t) => inicioDia_(new Date(t.fecha_limite)) < hoy).length;
+    const titulo = vencidos
+      ? `⏰ <b>Pendientes vencidos y de hoy</b> (${porAvisar.length})`
+      : `📌 <b>Pendientes que vencen hoy</b> (${porAvisar.length})`;
+    const teclado = {
+      inline_keyboard: porAvisar
+        .map((t) => [{ text: `✅ Cerrar #${t.id}`, callback_data: `hecho:${t.id}` }])
+        .concat([[{ text: '📌 Ver todos', callback_data: 'cmd:pendientes' }]]),
+    };
+    // Si el envío falla, la próxima ejecución vuelve a intentarlo (sigue sin `avisado`).
+    enviar_(titulo + '\n' + porAvisar.map(lineaPendiente_).join('\n'), null, teclado);
+    conBloqueo_(() => porAvisar.forEach((t) => guardarFila_('Pendientes', t, { avisado: new Date() })));
+  } catch (err) {
+    registrarError_('avisarVencimientos', err);
+  }
+}

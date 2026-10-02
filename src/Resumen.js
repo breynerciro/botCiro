@@ -32,7 +32,10 @@ function armarResumen_(perfiles) {
     return partes.join('\n\n');
   });
 
-  return [encabezado].concat(bloques).join('\n\n───────\n\n');
+  const cuerpo = [encabezado].concat(bloques).join('\n\n───────\n\n');
+  // Comparación de gastos 30 días vs. los 30 anteriores (solo sube la voz si se disparó).
+  const desviacion = lineaDesviacionGastos_();
+  return desviacion ? cuerpo + '\n\n' + desviacion : cuerpo;
 }
 
 /** Trigger diario. */

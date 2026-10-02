@@ -121,7 +121,7 @@ function escanearJira_() {
   if (res.cerrados.length) {
     partes.push('✔️ Cerrados en Jira: ' + res.cerrados.map((t) => `#${t.id} ${esc_(t.ref)}`).join(', '));
   }
-  if (partes.length && prop_('CHAT_ID')) enviar_(partes.join('\n\n'));
+  if (partes.length && hayChats_()) enviar_(partes.join('\n\n'));
   return res;
 }
 

@@ -57,10 +57,10 @@ function registrarWebhook() {
   }
   tg_('setWebhook', {
     url: url + '?key=' + prop_('WEBHOOK_SECRET'),
-    allowed_updates: ['message'],
+    allowed_updates: ['message', 'callback_query'],
     drop_pending_updates: true,
   });
-  tg_('setMyCommands', { commands: COMANDOS_MENU_.map((c) => ({ command: c[0], description: c[1] })) });
+  tg_('setMyCommands', { commands: comandosMenu_() });
   estadoWebhook();
 }
 
