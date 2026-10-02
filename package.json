@@ -1,0 +1,15 @@
+{
+  "name": "botciro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Asistente personal en Telegram: saldos, agenda y pendientes por perfil (Google Apps Script)",
+  "scripts": {
+    "test": "TZ=America/Bogota node --test test/",
+    "push": "clasp push --force",
+    "deploy": "clasp push --force && clasp deploy -i ID_DE_TU_IMPLEMENTACION --description botCiro",
+    "satelite:login": "mkdir -p $HOME/.botciro-trabajo && HOME=$HOME/.botciro-trabajo clasp login",
+    "satelite:crear": "cd satelite && cp appsscript.json .manifiesto.bak && HOME=$HOME/.botciro-trabajo clasp create --type standalone --title \"botCiro satélite\" --rootDir . ; mv .manifiesto.bak appsscript.json && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp push --force",
+    "satelite:push": "cd satelite && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp push --force",
+    "satelite:abrir": "cd satelite && test -f .clasp.json || { echo \"Falta satelite/.clasp.json: ejecuta npm run satelite:crear\"; exit 1; } && HOME=$HOME/.botciro-trabajo clasp open"
+  }
+}
