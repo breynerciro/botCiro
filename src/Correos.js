@@ -20,6 +20,7 @@ function opcionesClasificador_() {
     importantes: listaConfig_(getConfig_('IMPORTANTES_TRABAJO', '')),
     avisarDirectos: normalizar_(getConfig_('AVISAR_DIRECTOS_TRABAJO', 'si')) === 'si',
     iaActiva: true, // la disponibilidad real de Gemini se revisa al procesar
+    tasaUSD: tasaUSD_(), // tasa real de Google (GOOGLEFINANCE), con respaldo en Config TASA_USD
   };
 }
 
@@ -184,12 +185,14 @@ function procesarColaCorreos_() {
       if (!r) return;
       const pendienteId = conBloqueo_(() => aplicarClasificacion_(c, r.res, r.origen));
       if (r.res.accion === 'pendiente' || r.res.accion === 'aviso') {
-        avisos.push({ perfil: c.perfil, res: r.res, pendienteId: pendienteId });
+        avisos.push({ perfil: c.perfil, res: r.res, pendienteId: pendienteId, correoId: c.id });
       }
       procesados++;
     });
 
-    if (avisos.length && prop_('CHAT_ID')) enviar_(textoAvisos_(avisos));
+    if (avisos.length && hayChats_()) {
+      enviar_(textoAvisos_(avisos), null, tecladoAvisos_(avisos));
+    }
     return procesados;
   } finally {
     cache.remove('procesando_cola');
@@ -206,6 +209,30 @@ function textoAvisos_(avisos) {
     return l;
   });
   return `📬 <b>Correos importantes</b>\n` + lineas.join('\n');
+}
+
+/** Botones: cerrar el pendiente creado y marcar si el análisis acertó o no (alimenta /metricas). */
+function tecladoAvisos_(avisos) {
+  const filas = avisos.map((a) => {
+    const fila = [];
+    if (a.pendienteId) fila.push({ text: `✅ Cerrar #${a.pendienteId}`, callback_data: `hecho:${a.pendienteId}` });
+    fila.push({ text: '👍', callback_data: `fb:ok:${a.correoId}` });
+    fila.push({ text: '👎', callback_data: `fb:mal:${a.correoId}` });
+    return fila;
+  });
+  filas.push([{ text: '📌 Ver pendientes', callback_data: 'cmd:pendientes' }]);
+  return { inline_keyboard: filas };
+}
+
+/** Feedback del usuario sobre un correo analizado (👍 acertó, 👎 falló). */
+function registrarFeedback_(correoId, valor) {
+  const fila = leer_('Correos').find((c) => String(c.id) === String(correoId));
+  if (!fila) return 'No encontré ese correo para calificarlo.';
+  guardarFila_('Correos', fila, { feedback: valor });
+  if (valor === 'mal') {
+    return `👎 Anotado. Con /metricas ves los fallos y con /ignorar ${esc_(String(fila.remitente).replace(/.*@/, '').replace(/[<>]/g, ''))} dejo de analizarlo.`;
+  }
+  return '👍 Gracias, seguiré así con ese remitente.';
 }
 
 const ETIQUETAS_CATEGORIA_ = {

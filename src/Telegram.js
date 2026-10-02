@@ -4,18 +4,50 @@
 
 const LIMITE_MENSAJE_ = 4000;
 
+/** Chats autorizados: CHAT_ID guarda una lista separada por coma (varios dispositivos). */
+function chats_() {
+  return String(prop_('CHAT_ID') || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function hayChats_() {
+  return chats_().length > 0;
+}
+
+/**
+ * Llamada a la Bot API con reintentos: 429 (flood) y 5xx esperan y vuelven a intentar.
+ * Los demás errores se lanzan de inmediato (mensaje inválido, token malo, etc.).
+ */
 function tg_(metodo, payload) {
   const token = prop_('TELEGRAM_TOKEN');
   if (!token) throw new Error('Falta TELEGRAM_TOKEN en las propiedades del script.');
-  const resp = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/' + metodo, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload || {}),
-    muteHttpExceptions: true,
-  });
-  const data = JSON.parse(resp.getContentText());
-  if (!data.ok) throw new Error('Telegram ' + metodo + ': ' + data.description);
-  return data.result;
+  let ultimoError = null;
+  for (let intento = 0; intento < 3; intento++) {
+    const resp = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/' + metodo, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload || {}),
+      muteHttpExceptions: true,
+    });
+    let data = null;
+    try {
+      data = JSON.parse(resp.getContentText());
+    } catch (e) {
+      data = null;
+    }
+    if (data && data.ok) return data.result;
+    const codigo = (data && data.error_code) || resp.getResponseCode() || 500;
+    ultimoError = new Error('Telegram ' + metodo + ': ' + ((data && data.description) || 'HTTP ' + codigo));
+    if (codigo === 429 || codigo >= 500) {
+      const espera = (data && data.parameters && data.parameters.retry_after) || Math.pow(2, intento) * 2;
+      Utilities.sleep(Math.min(espera, 30) * 1000);
+      continue;
+    }
+    throw ultimoError;
+  }
+  throw ultimoError;
 }
 
 /** Escapa texto para parse_mode HTML. */
@@ -23,42 +55,55 @@ function esc_(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Envía un mensaje HTML al chat autorizado (o al indicado), partiéndolo si excede el límite. */
-function enviar_(texto, chatId) {
-  chatId = chatId || prop_('CHAT_ID');
-  if (!chatId) throw new Error('No hay chat vinculado: envía /vincular <código> al bot.');
+/**
+ * Parte un mensaje en trozos dentro del límite de Telegram.
+ * También corta una sola línea que supere el límite (antes se enviaba y Telegram lo rechazaba).
+ */
+function partirMensaje_(texto) {
   const partes = [];
   let actual = '';
-  String(texto).split('\n').forEach((linea) => {
-    if ((actual + '\n' + linea).length > LIMITE_MENSAJE_) {
+  String(texto == null ? '' : texto).split('\n').forEach((linea) => {
+    let l = linea;
+    while (l.length > LIMITE_MENSAJE_) {
+      if (actual) {
+        partes.push(actual);
+        actual = '';
+      }
+      partes.push(l.slice(0, LIMITE_MENSAJE_));
+      l = l.slice(LIMITE_MENSAJE_);
+    }
+    if (actual && (actual + '\n' + l).length > LIMITE_MENSAJE_) {
       partes.push(actual);
-      actual = linea;
+      actual = l;
     } else {
-      actual = actual ? actual + '\n' + linea : linea;
+      actual = actual ? actual + '\n' + l : l;
     }
   });
   if (actual) partes.push(actual);
-  partes.forEach((p) =>
-    tg_('sendMessage', { chat_id: chatId, text: p, parse_mode: 'HTML', disable_web_page_preview: true })
-  );
+  return partes.filter(Boolean);
 }
 
-const COMANDOS_MENU_ = [
-  ['resumen', '(/r) Saldos, agenda de hoy y pendientes'],
-  ['agenda', '(/a) Reuniones: hoy | mañana | semana'],
-  ['pendientes', '(/p) Pendientes abiertos'],
-  ['tarea', '(/t) Crear pendiente: /tarea texto [fecha]'],
-  ['hecho', '(/h) Cerrar pendientes: /hecho 3 5'],
-  ['saldo', '(/s) Saldos estimados por cuenta'],
-  ['gasto', '(/g) Registrar gasto: /gasto 50000 mercado #cuenta'],
-  ['ingreso', '(/i) Registrar ingreso: /ingreso 2000000 nómina'],
-  ['ajustar', '(/aj) Fijar saldo real: /ajustar cuenta 2300000'],
-  ['movimientos', '(/m) Últimos movimientos'],
-  ['nuevacuenta', '(/nc) Crear cuenta: /nuevacuenta banco alias 1234 saldo'],
-  ['perfil', '(/pf) Cambiar perfil activo: personal | trabajo'],
-  ['correos', '(/c) Correos analizados en las últimas 24 h'],
-  ['jira', '(/j) Revisar actividades asignadas en Jira'],
-  ['ignorar', '(/ig) Ignorar un remitente: /ignorar tienda.com'],
-  ['revisar', '(/rv) Revisar Gmail ahora'],
-  ['ayuda', '(/?) Ver todos los comandos'],
-];
+/**
+ * Envía un mensaje HTML a un chat (o a todos los vinculados si no se indica).
+ * `teclado` es un inline keyboard de Telegram ({ inline_keyboard: [[...]] }).
+ */
+function enviar_(texto, chatId, teclado) {
+  const destinos = chatId ? [String(chatId)] : chats_();
+  if (!destinos.length) throw new Error('No hay chat vinculado: envía /vincular <código> al bot.');
+  const partes = partirMensaje_(texto);
+  destinos.forEach((id) => {
+    partes.forEach((p, i) => {
+      const payload = { chat_id: id, text: p, parse_mode: 'HTML', disable_web_page_preview: true };
+      if (teclado && i === partes.length - 1) payload.reply_markup = teclado;
+      tg_('sendMessage', payload);
+    });
+  });
+}
+
+/** Contesta al usuario que pulsó un botón (sin HTML: Telegram lo muestra en un toast). */
+function responderCallback_(callbackId, texto) {
+  tg_('answerCallbackQuery', {
+    callback_query_id: callbackId,
+    text: String(texto || '').replace(/<[^>]+>/g, '').slice(0, 200),
+  });
+}

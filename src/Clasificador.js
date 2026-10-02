@@ -75,10 +75,19 @@ function montoTrasEtiqueta_(texto, etiqueta) {
 }
 
 function primerMonto_(texto) {
-  const m = /(?:\$|COP|USD|US\$)\s?(\d[\d.,]*)/i.exec(texto || '');
+  // Moneda local (COP) por defecto; detecta también dólares para convertirlos.
+  const m = /(?:US\$|USD|COP|\$)\s?(\d[\d.,]*)/i.exec(texto || '');
   if (!m) return null;
+  const moneda = /^(?:US\$|USD)/i.test(m[0]) ? 'USD' : 'COP';
   const v = parseNumeroCOP_(m[1]);
-  return isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : null;
+  if (!isFinite(v) || v <= 0) return null;
+  return { valor: Math.round(v * 100) / 100, moneda: moneda };
+}
+
+/** Convierte a la moneda local (COP): los montos en USD se multiplican por Config TASA_USD. */
+function aCOP_(valor, moneda, tasaUSD) {
+  if (moneda === 'USD') return Math.round(valor * (Number(tasaUSD) || 4100));
+  return Math.round(valor);
 }
 
 function emisorTarjeta_(de) {
@@ -147,7 +156,11 @@ function clasificarPorReglas_(msg, opciones, ahora) {
   }
 
   if (contieneAlguno_(de, SERVICIOS_) && RE_COBRO_.test(texto)) {
-    return r('suscripcion', 'suscripcion', 'resumen', { resumen: `${nombreRemitente_(de)}: ${asunto}`, monto: primerMonto_(texto) });
+    const pm = primerMonto_(texto);
+    const monto = pm ? aCOP_(pm.valor, pm.moneda, opciones.tasaUSD) : null;
+    // Un monto en otra moneda se muestra convertido a la moneda local (COP).
+    const nota = pm && pm.moneda === 'USD' ? ` · US$${Number.isInteger(pm.valor) ? pm.valor : pm.valor.toFixed(2)} ≈ ${formatCOP_(monto)}` : '';
+    return r('suscripcion', 'suscripcion', 'resumen', { resumen: `${nombreRemitente_(de)}: ${asunto}${nota}`, monto: monto });
   }
 
   if (contieneAlguno_(de, opciones.importantes || [])) {

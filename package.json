@@ -4,7 +4,8 @@
   "private": true,
   "description": "Asistente personal en Telegram: saldos, agenda y pendientes por perfil (Google Apps Script)",
   "scripts": {
-    "test": "TZ=America/Bogota node --test test/",
+    "test": "TZ=America/Bogota node --test test/*.test.js",
+    "check": "for f in src/*.js satelite/*.js test/*.js; do node --check \"$f\" || exit 1; done",
     "push": "clasp push --force",
     "deploy": "clasp push --force && clasp deploy -i ID_DE_TU_IMPLEMENTACION --description botCiro",
     "satelite:login": "mkdir -p $HOME/.botciro-trabajo && HOME=$HOME/.botciro-trabajo clasp login",

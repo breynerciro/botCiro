@@ -9,10 +9,26 @@
 const BANCOS = [
   { id: 'bancolombia', nombre: 'Bancolombia', remitentes: ['notificacionesbancolombia.com', 'bancolombia.com.co'] },
   { id: 'davivienda', nombre: 'Davivienda', remitentes: ['davivienda.com'] },
+  { id: 'daviplata', nombre: 'Daviplata', remitentes: ['daviplata.com'] },
+  { id: 'nequi', nombre: 'Nequi', remitentes: ['nequi.com.co'] },
   { id: 'nu', nombre: 'Nu', remitentes: ['nu.com.co'] },
   { id: 'bbva', nombre: 'BBVA', remitentes: ['bbva.com.co'] },
   { id: 'bogota', nombre: 'Banco de Bogotá', remitentes: ['bancodebogota.com.co'] },
+  { id: 'occidente', nombre: 'Banco de Occidente', remitentes: ['bancooccidente.com.co'] },
+  { id: 'popular', nombre: 'Banco Popular', remitentes: ['bancopopular.com.co'] },
+  { id: 'avvillas', nombre: 'AV Villas', remitentes: ['avvillas.com.co'] },
+  { id: 'colpatria', nombre: 'Scotiabank Colpatria', remitentes: ['colpatria.com', 'scotiabankcolpatria.com'] },
+  { id: 'falabella', nombre: 'Falabella', remitentes: ['bancfalabella.com'] },
+  { id: 'itau', nombre: 'Itaú', remitentes: ['itau.com.co'] },
+  { id: 'cajasocial', nombre: 'Caja Social', remitentes: ['cajasocial.com.co'] },
+  { id: 'lulo', nombre: 'Lulo Bank', remitentes: ['lulobank.com'] },
+  { id: 'movii', nombre: 'Movii', remitentes: ['movii.co'] },
+  { id: 'uala', nombre: 'Ualá', remitentes: ['uala.com.co', 'uala.co'] },
+  { id: 'rappi', nombre: 'Rappi', remitentes: ['rappicard.co'] },
 ];
+
+// Si tu banco no está aquí, suma su dominio (el mismo nombre de ENTIDADES_ en Parsing.js)
+// y en unos minutos sus alertas empiezan a registrarse.
 
 // La palabra clave que aparece primero en el texto define si es débito o crédito.
 const CLAVES_MOVIMIENTO_ = [
@@ -67,10 +83,22 @@ function parseMovimientoGenerico_(texto) {
   };
 }
 
+/**
+ * Un extracto o estado de cuenta no es un movimiento: lo maneja Clasificador.js
+ * (crea el pendiente de pago). Sin esta guardia, un "Pago total: $2.345.600"
+ * se registraría como una compra de ese valor.
+ */
+function esExtracto_(texto) {
+  return /extracto|estado de cuenta|fecha l[ií]mite de pago|pago total|total a pagar|valor a pagar|pago m[ií]nimo|resumen de (tu )?tarjeta/i.test(
+    String(texto || '')
+  );
+}
+
 /** Devuelve { banco, tipo, monto, ultimos4, comercio, descripcion } o null si el correo no es un movimiento. */
 function parseCorreoBanco_(remitente, texto) {
   const banco = identificarBanco_(remitente);
   if (!banco) return null;
+  if (esExtracto_(texto)) return null;
   const mov = (banco.parser || parseMovimientoGenerico_)(texto);
   if (!mov) return null;
   mov.banco = banco.id;

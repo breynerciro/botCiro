@@ -6,7 +6,7 @@ const { cargarGas, ymd } = require('./helpers');
 
 const g = cargarGas('Parsing.js', 'BankParsers.js', 'Clasificador.js', 'IA.js');
 const AHORA = new Date(2026, 9, 1, 10, 0);
-const OPC = { ignorar: ['tienda.com'], importantes: ['cliente-importante.com'], avisarDirectos: true, iaActiva: true };
+const OPC = { ignorar: ['tienda.com'], importantes: ['cliente-importante.com'], avisarDirectos: true, iaActiva: true, tasaUSD: 4000 };
 
 function clasificar(msg, opciones = OPC) {
   const r = g.clasificarPorReglas_(Object.assign({ perfil: 'personal', cuerpo: '' }, msg), opciones, AHORA);
@@ -42,11 +42,13 @@ test('movimiento bancario se omite (lo registra escanearBancos_)', () => {
   assert.equal(r.regla, 'banco');
 });
 
-test('suscripciones y cobros van al resumen con monto', () => {
+test('suscripciones y cobros van al resumen con monto (moneda local)', () => {
   const r = clasificar({ de: 'Netflix <info@account.netflix.com>', asunto: 'Tu recibo de Netflix', cuerpo: 'Total: COP 44.900' });
   assert.deepEqual([r.regla, r.accion, r.monto], ['suscripcion', 'resumen', 44900]);
+  // En dólares se convierte a COP con la tasa de Config TASA_USD (aquí 4000).
   const usd = clasificar({ de: 'OpenAI <noreply@tm.openai.com>', asunto: 'Your ChatGPT receipt', cuerpo: 'Amount paid US$20.00' });
-  assert.deepEqual([usd.regla, usd.monto], ['suscripcion', 20]);
+  assert.deepEqual([usd.regla, usd.monto], ['suscripcion', 80000]);
+  assert.match(usd.resumen, /US\$20 ≈ \$80\.000/);
 });
 
 test('pago rechazado avisa al instante', () => {

@@ -21,7 +21,7 @@ function recibirSync_(datos) {
   const primeraVez = !prop_('SYNC_ULTIMA_' + perfil);
   setProp_('SYNC_ULTIMA_' + perfil, Date.now());
   if (datos.cuenta) setProp_('SYNC_CUENTA_' + perfil, datos.cuenta);
-  if (primeraVez && prop_('CHAT_ID')) enviar_(`🔗 Cuenta <b>${esc_(datos.cuenta || perfil)}</b> conectada al perfil ${perfil}.`);
+  if (primeraVez && hayChats_()) enviar_(`🔗 Cuenta <b>${esc_(datos.cuenta || perfil)}</b> conectada al perfil ${perfil}.`);
 
   return { ok: true, eventos: (datos.eventos || []).length, correos: encolados };
 }

@@ -44,6 +44,7 @@ function registrarMovimiento_(mov) {
     tipo: mov.tipo,
     monto: mov.monto,
     descripcion: mov.descripcion || '',
+    categoria: mov.categoria || categoriaDeGasto_(mov.descripcion),
     fuente: mov.fuente,
     gmail_msg_id: mov.gmail_msg_id || '',
   };
@@ -70,8 +71,20 @@ function registrarManualDatos_(tipo, datos, perfil) {
     if (!cuenta) return `No encontré la cuenta "${esc_(datos.cuenta)}". Mira tus cuentas con /saldo.`;
   } else {
     const p = perfil || perfilActivo_();
-    cuenta = cuentas.find((c) => c.perfil === p);
-    if (!cuenta) return `No tienes cuentas en el perfil ${p}. Crea una con <code>/nuevacuenta banco alias 1234 saldo</code>.`;
+    const propias = cuentas.filter((c) => c.perfil === p);
+    if (!propias.length) return `No tienes cuentas en el perfil ${p}. Crea una con <code>/nuevacuenta banco alias 1234 saldo</code>.`;
+    // Nunca se adivina: si hay más de una, se usa la cuenta por defecto o se pregunta.
+    const porDefecto = getConfig_('DEFECTO_' + p, '');
+    cuenta = (porDefecto && buscarCuenta_(porDefecto, p, cuentas)) || (propias.length === 1 ? propias[0] : null);
+    if (!cuenta) {
+      const movimientos = leer_('Movimientos');
+      const lineas = propias.map((c) => `• <code>#${esc_(c.alias || c.banco)}</code> ${esc_(nombreCuenta_(c))} · ${formatCOP_(saldoCuenta_(c, movimientos))}`);
+      return (
+        `❓ ¿A qué cuenta va ${tipo === 'debito' ? 'ese gasto' : 'ese ingreso'}? Vuelve a mandarlo con <code>#cuenta</code>, por ejemplo <code>/gasto ${datos.monto} ${esc_(datos.descripcion)} #${esc_(propias[0].alias || propias[0].banco)}</code>.\n\n` +
+        lineas.join('\n') +
+        `\n\nO fija una por defecto: <code>/defecto ${esc_(propias[0].alias || propias[0].banco)}</code>`
+      );
+    }
   }
   const saldo = registrarMovimiento_({
     cuenta: cuenta,
@@ -125,6 +138,20 @@ function ajustarSaldo_(args, perfil) {
     `✅ ${esc_(nombreCuenta_(cuenta))}: saldo fijado en <b>${formatCOP_(m.monto)}</b>` +
     (dif ? `\n(diferencia vs. estimado: ${formatCOP_(dif)})` : '')
   );
+}
+
+/** /defecto nu → los gastos sin #cuenta caen en esa cuenta del perfil. */
+function cmdDefecto_(args, perfil) {
+  const token = String(args || '').trim();
+  if (!token) {
+    const actual = getConfig_('DEFECTO_' + perfil, '');
+    return `Cuenta por defecto de <b>${perfil}</b>: ${actual ? `<code>${esc_(actual)}</code>` : '<i>ninguna</i>'}.
+Cámbiala con <code>/defecto ${perfil} cuenta</code>.`;
+  }
+  const cuenta = buscarCuenta_(token, perfil);
+  if (!cuenta) return `No encontré la cuenta "${esc_(token)}" en ${perfil}. Mira tus cuentas con /saldo.`;
+  setConfig_('DEFECTO_' + perfil, cuenta.alias || cuenta.banco);
+  return `🏦 Los gastos sin <code>#cuenta</code> del perfil <b>${perfil}</b> van ahora a <b>${esc_(nombreCuenta_(cuenta))}</b>.`;
 }
 
 /** Tarjetas de crédito / deudas: su saldo es negativo (lo que debes). */

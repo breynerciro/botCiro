@@ -40,6 +40,7 @@ function escanearBancos_() {
   const ignorados = JSON.parse(prop_('GMAIL_IGNORADOS') || '[]');
   const setIgnorados = new Set(ignorados);
   const limite = Date.now() - VENTANA_DIAS_ * 86400000;
+  const avisos = [];
   let nuevos = 0;
 
   hilos.forEach((hilo) => {
@@ -53,8 +54,9 @@ function escanearBancos_() {
       if (!mov) {
         ignorados.push(id);
         setIgnorados.add(id);
-        if (/(?:\$|COP)\s?\d/.test(texto)) {
-          registrarLog_('revisar', 'escanearBancos_', 'Correo de banco con monto que no pude interpretar: ' + msg.getSubject(), texto.slice(0, 1000));
+        // Los extractos los procesa el pipeline de correos; solo queda en Log lo realmente desconocido.
+        if (!esExtracto_(texto) && /(?:\$|COP)\s?\d/.test(texto)) {
+          registrarLog_('revisar', 'escanearBancos_', 'Correo de banco con monto que no pude interpretar: ' + msg.getSubject(), redactar_(texto).slice(0, 1000));
         }
         return;
       }
@@ -80,10 +82,21 @@ function escanearBancos_() {
       } else {
         aviso += `\n⚠️ No tengo esa cuenta registrada. Créala con <code>/nuevacuenta ${mov.banco} alias ${mov.ultimos4 || '1234'} saldo</code>`;
       }
-      enviar_(aviso);
+      avisos.push(aviso);
     });
   });
 
   setProp_('GMAIL_IGNORADOS', JSON.stringify(ignorados.slice(-MAX_IGNORADOS_)));
+  enviarAgrupado_('💳 <b>Movimientos bancarios</b>', avisos);
   return nuevos;
+}
+
+/** Un solo mensaje con todos los avisos; si Telegram falla, no se pierde el resto del escaneo. */
+function enviarAgrupado_(titulo, avisos) {
+  if (!avisos.length || !hayChats_()) return;
+  try {
+    enviar_(titulo + '\n' + avisos.join('\n\n'));
+  } catch (err) {
+    registrarError_('enviarAgrupado_', err);
+  }
 }

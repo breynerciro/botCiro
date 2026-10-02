@@ -14,8 +14,11 @@ Asistente personal en Telegram que reúne en un solo chat **saldos, reuniones y 
 | Reuniones | Lee tu calendario personal y el de trabajo (vía satélite). Avisa 10 min antes con el link de Meet/Zoom/Teams. |
 | Correos | Analiza solo los correos de ambas cuentas: extractos de tarjeta → pendiente de pago con fecha límite; suscripciones y cobros → resumen; reuniones, pagos rechazados y lo importante → aviso al instante. |
 | Jira | Tus actividades asignadas se vuelven pendientes de trabajo y se cierran solas cuando las resuelves en Jira. |
-| Pendientes | Creados por chat, detectados en correos o asignados en Jira. |
-| Resumen | Todos los días a las 6:30 a. m. (configurable) y con `/resumen`. |
+| Pendientes | Creados por chat, detectados en correos o asignados en Jira. Te avisa solo cuando vencen, con botón ✅ para cerrarlos. |
+| Resumen | Todos los días a las 6:30 a. m. (configurable) y con `/resumen`. Incluye cómo van tus gastos vs. el mes anterior. |
+| Conversación | Escribe sin comando: *"¿qué tengo mañana?"*, *"¿cuánto llevo gastado este mes?"*, *"redáctame una respuesta"*. Gemini lo convierte en una acción real o te contesta con los datos de la hoja. |
+| Informes | `/informe` agrupa tus gastos por categoría (mercado, transporte, salud…) y los compara con el mes anterior. |
+| Salud | `/estado` muestra triggers, errores, cola, tasa USD y sincronizaciones; un watchdog diario te avisa **solo** si algo falla. |
 
 ## Instalación (una sola vez, ~20 min)
 
@@ -52,6 +55,10 @@ Las reglas fijas reconocen alertas del banco, extractos, suscripciones, invitaci
 3. Opcional: ejecuta `modelosGemini` para ver los modelos disponibles y elige uno en `Config` → `GEMINI_MODELO`.
 
 Sin API key el bot sigue funcionando, solo con reglas.
+
+La misma API key enciende la **conversación**: lo que escribas sin comando (y que no sea un gasto o una tarea) lo interpreta Gemini y lo ejecuta con las mismas funciones del bot (saldo, agenda, pendientes, informe, búsqueda de correos…) o te contesta con el contexto real de la hoja. También puede redactarte un correo o un mensaje para que lo copies: **nunca envía nada solo**.
+
+> **Tasa de cambio:** los montos en dólares se convierten a pesos con la **tasa real de Google** (`GOOGLEFINANCE("USD/COP")`, pestaña `Tasas` de la hoja), guardada 6 h. Si Google no responde, se usa `Config` → `TASA_USD` como respaldo. La ves en `/estado`.
 
 > **Privacidad:** en el nivel gratuito, Google puede usar lo que se envía para mejorar sus productos. Por eso:
 > - Solo se envían correos **personales** que las reglas no resolvieron, y antes se tapan correos electrónicos, teléfonos y números largos.
@@ -119,9 +126,29 @@ Las tarjetas de crédito quedan como cuentas `TC` con saldo negativo (lo que deb
 /correos                         lo que el bot analizó en las últimas 24 h
 /ignorar tienda.com              no volver a analizar ese remitente
 /jira                            revisar ya tus actividades asignadas
+/reunion Comité el jueves 3pm    crea el evento en tu calendario personal
+/informe                         gastos del mes por categoría vs. mes anterior
+/metricas                        qué tan acertado está el análisis (👍👎 de cada aviso)
+/estado                          salud del sistema: triggers, errores, tasa USD, sync
+/defecto nu                      cuenta por defecto cuando no pones #cuenta
+/desvincular                     quitar este chat (para añadir tablet/PC, /vincular de nuevo)
+"¿qué tengo mañana?"            con GEMINI_API_KEY, también entiendo preguntas normales
 ```
 
 > El saldo es un **estimado**: suma lo que llega por correo y por chat. Si un banco no manda alerta de algún movimiento (cuota de manejo, intereses), concilia de vez en cuando con `/ajustar`.
+
+## Varios chats y botones
+
+- **Varios dispositivos:** el mismo código de `/vincular` sirve para agregar el chat de tu tablet o PC (el bot manda los avisos a todos). `/desvincular` quita el que estás usando.
+- **Botones:** los avisos traen botones — ✅ para cerrar un pendiente, 👍/👎 para calificar el análisis, 🔗 para unirte a una reunión — sin tener que escribir nada.
+
+## Mantenimiento automático
+
+- **Recordatorios:** avisa una sola vez cuando un pendiente vence hoy o está vencido.
+- **Retención:** los correos analizados se archivan pasados `DIAS_RETENCION_CORREOS` (60) y el `Log` en `DIAS_RETENCION_LOG` (30) con tope de `MAX_FILAS_LOG` (5000). Pendientes y movimientos **nunca** se borran.
+- **Copia de seguridad:** copia semanal de la hoja a tu Drive (`backupDatos()`), conserva las últimas `BACKUPS_MAX` (8).
+- **Un solo trigger:** todo lo periódico corre en `scheduler` (cada 5 min) con su propia frecuencia (Jira cada 10, salud y purga una vez al día, backup semanal), así se gasta mucha menos cuota de Apps Script.
+- **Watchdog:** `revisarSalud()` corre a diario y solo te escribe si detecta alertas (triggers faltantes, errores seguidos, satélite desconectado, correos atascados).
 
 ## Bancos soportados
 El parser es genérico y entiende las frases típicas de las alertas en Colombia ("Compraste", "Recibiste", "Transferiste", "Pagaste", "Retiraste"). Los remitentes reconocidos están en `src/BankParsers.js` → `BANCOS`. Para agregar un banco, suma su dominio ahí.
@@ -131,11 +158,16 @@ Los correos de banco que tienen un monto pero que no se pudieron interpretar que
 ## Desarrollo
 ```bash
 npm test          # pruebas de parsers + flujo completo con servicios de Google simulados
+npm run check     # revisa la sintaxis de src/, satelite/ y test/
 npm run push      # sube cambios a Apps Script
 ```
+En GitHub Actions (`.github/workflows/test.yml`) corren `npm run check` y `npm test` en cada push y PR.
 `npm run push` solo actualiza el código del editor. Para que el bot use los cambios, ejecuta `npm run deploy`: crea una nueva versión sobre la misma implementación, así que la URL `/exec` y el webhook no cambian.
 
+> **Actualizaciones que cambian permisos:** el bot solo pide `gmail.readonly` (antes era Gmail completo). Si ya lo tenías instalado, vuelve a ejecutar `setup()` y acepta los permisos nuevos.
+
 ## Solución de problemas
+- **Algo falla o se ve raro:** manda `/estado` en el chat: ahí ves triggers activos, errores de las últimas 24 h, correos en cola, IA, Jira, tasa USD y la última sincronización.
 - **El bot no responde**: ejecuta `estadoWebhook()`. Si `ultimo_error` muestra un 302 u otro error recurrente, ejecuta `activarPolling()`: el bot pasa a leer mensajes cada minuto, sin webhook.
 - **Errores en general**: revisa la pestaña `Log` de la hoja y el panel **Ejecuciones** del editor.
 - **Cuotas gratuitas** (cuenta personal): 90 min/día de triggers. El uso estimado es de ~15 min/día.
