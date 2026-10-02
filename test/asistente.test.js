@@ -242,3 +242,86 @@ test('instalarTriggers deja un solo scheduler y borra los triggers viejos', () =
   assert.deepEqual(env.triggers.slice().sort(), ['enviarResumenDiario', 'scheduler']);
   assert.match(env.decir('/estado'), /• Triggers: enviarResumenDiario, scheduler|• Triggers: scheduler, enviarResumenDiario/);
 });
+
+// ── Pendientes con hora y peticiones compuestas ─────────────────────────────
+
+function proximoLunes() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + ((1 - d.getDay() + 7) % 7 || 7));
+  return d;
+}
+const ddmm = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+test('"cierra el 3 y crea el mismo para el lunes 10am" se reprograma en una acción', () => {
+  const env = preparar({
+    gemini: () =>
+      respuestaGemini({ tipo: 'funcion', acciones: [{ funcion: 'reprogramar_tarea', argumentos: { ids: '1', fecha: 'lunes', hora: '10:00' } }] }),
+  });
+  env.props.GEMINI_API_KEY = 'k';
+  env.decir('/tarea Llamar al contador');
+  const r = env.decir('Marca como completado el pendiente 1 y crea el mismo para lunes a las 10am');
+  assert.match(r, /✔️ #1 cerrado/);
+  assert.match(r, new RegExp(`📝 #2 \\(personal\\) Llamar al contador · vence lun ${ddmm(proximoLunes())} 10:00`));
+  const p = env.decir('/pendientes');
+  assert.doesNotMatch(p, /#1 /);
+  assert.match(p, new RegExp(`#2 Llamar al contador <i>\\(${ddmm(proximoLunes())} 10:00\\)</i>`));
+});
+
+test('la IA puede encadenar varias acciones y crear_tarea respeta fecha y hora', () => {
+  const env = preparar({
+    gemini: () =>
+      respuestaGemini({
+        tipo: 'funcion',
+        acciones: [
+          { funcion: 'cerrar_tarea', argumentos: { ids: '1' } },
+          { funcion: 'crear_tarea', argumentos: { texto: 'Revisar extracto', fecha: 'lunes', hora: '15:30' } },
+        ],
+      }),
+  });
+  env.props.GEMINI_API_KEY = 'k';
+  env.decir('/tarea Pagar arriendo');
+  const r = env.decir('cierra el 1 y créame revisar extracto el lunes 3:30 pm');
+  assert.match(r, /✔️ #1 Pagar arriendo/);
+  assert.match(r, new RegExp(`#2 \\(personal\\) Revisar extracto · vence lun ${ddmm(proximoLunes())} 15:30`));
+});
+
+test('al contexto de la IA solo va el texto de pendientes personales', () => {
+  let sistema = '';
+  const env = preparar({
+    gemini: (payload) => {
+      sistema = payload.systemInstruction.parts[0].text;
+      return respuestaGemini({ tipo: 'respuesta', respuesta: 'ok' });
+    },
+  });
+  env.props.GEMINI_API_KEY = 'k';
+  env.decir('/tarea personal Comprar regalo');
+  env.decir('/tarea trabajo Cotización cliente secreto');
+  env.decir('hola');
+  assert.match(sistema, /#1 personal "Comprar regalo"/);
+  assert.match(sistema, /#2 trabajo/);
+  assert.doesNotMatch(sistema, /Cotización cliente secreto/);
+});
+
+test('/tarea entiende la hora solo cuando es inequívoca', () => {
+  const env = preparar();
+  assert.match(env.decir('/tarea Llamar al banco el lunes a las 10am'), new RegExp(`Llamar al banco · vence lun ${ddmm(proximoLunes())} 10:00`));
+  assert.match(env.decir('/tarea Pagar 3 cuotas el lunes'), new RegExp(`Pagar 3 cuotas · vence lun ${ddmm(proximoLunes())}$`));
+  assert.match(env.decir('/tarea Ahorrar 2.5 millones'), /Ahorrar 2\.5 millones$/);
+});
+
+test('el pendiente con hora se avisa a esa hora, no al inicio del día', () => {
+  const env = preparar();
+  const enUnaHora = new Date(Date.now() + 3600000);
+  const hh = String(enUnaHora.getHours()).padStart(2, '0');
+  // Si en una hora ya es mañana, el pendiente queda para mañana y tampoco debe avisarse.
+  env.decir(`/tarea Llamada con proveedor a las ${hh}:${String(enUnaHora.getMinutes()).padStart(2, '0')}`);
+  env.enviados.length = 0;
+  env.ctx.avisarVencimientos();
+  assert.equal(env.enviados.length, 0, 'todavía no es la hora');
+
+  const t = env.hojas.Pendientes._filas[1];
+  t[3] = new Date(Date.now() - 60000); // la hora ya pasó
+  env.ctx.avisarVencimientos();
+  assert.equal(env.enviados.length, 1);
+});

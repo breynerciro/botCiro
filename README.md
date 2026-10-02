@@ -13,10 +13,10 @@ Asistente personal en Telegram que reúne en un solo chat **saldos, reuniones y 
 | Saldo de tus cuentas | Lee cada 5 min las alertas del banco en Gmail y te avisa cada movimiento. También registras gastos por chat. |
 | Reuniones | Lee tu calendario personal y el de trabajo (vía satélite). Avisa 10 min antes con el link de Meet/Zoom/Teams. |
 | Correos | Analiza solo los correos de ambas cuentas: extractos de tarjeta → pendiente de pago con fecha límite; suscripciones y cobros → resumen; reuniones, pagos rechazados y lo importante → aviso al instante. |
-| Jira | Tus actividades asignadas se vuelven pendientes de trabajo y se cierran solas cuando las resuelves en Jira. |
+| Jira | Solo por API: tus actividades en estado **En curso** se vuelven pendientes de trabajo y se cierran solas cuando salen de ese estado (Config `JIRA_ESTADOS`). |
 | Pendientes | Creados por chat, detectados en correos o asignados en Jira. Te avisa solo cuando vencen, con botón ✅ para cerrarlos. |
 | Resumen | Todos los días a las 6:30 a. m. (configurable) y con `/resumen`. Incluye cómo van tus gastos vs. el mes anterior. |
-| Conversación | Escribe sin comando: *"¿qué tengo mañana?"*, *"¿cuánto llevo gastado este mes?"*, *"redáctame una respuesta"*. Gemini lo convierte en una acción real o te contesta con los datos de la hoja. |
+| Conversación | Escribe sin comando: *"¿qué tengo mañana?"*, *"¿cuánto llevo gastado este mes?"*, *"redáctame una respuesta"*. Entiende varias cosas en un mensaje (*"cierra el 3 y crea el mismo para el lunes 10am"*). Gemini lo convierte en acciones reales o te contesta con los datos de la hoja. |
 | Informes | `/informe` agrupa tus gastos por categoría (mercado, transporte, salud…) y los compara con el mes anterior. |
 | Salud | `/estado` muestra triggers, errores, cola, tasa USD y sincronizaciones; un watchdog diario te avisa **solo** si algo falla. |
 
@@ -94,7 +94,7 @@ Para actualizar el satélite más adelante: `npm run satelite:push`.
 ### 6. Jira
 1. Crea un token en https://id.atlassian.com/manage-profile/security/api-tokens. Vence: el bot te avisa cuando deje de funcionar.
 2. En las Propiedades del script del bot principal agrega `JIRA_SITIO` (p. ej. `miempresa.atlassian.net`), `JIRA_CORREO` (tu correo de Atlassian) y `JIRA_TOKEN`.
-3. Prueba con `/jira` en Telegram. Para cambiar qué se consulta, edita `Config` → `JIRA_JQL`.
+3. Prueba con `/jira` en Telegram. Solo se vuelven pendientes las actividades en **En curso**. Para cambiar los estados, edita `Config` → `JIRA_ESTADOS` (p. ej. `En curso, En revisión`; `todos` = todas las abiertas). Para cambiar qué se consulta, edita `JIRA_JQL`.
 
 ### 7. Registrar tus cuentas
 En Telegram:
@@ -116,7 +116,7 @@ Las tarjetas de crédito quedan como cuentas `TC` con saldo negativo (lo que deb
 ```
 /resumen                         saldos + reuniones de hoy + pendientes
 /agenda trabajo semana           reuniones de los próximos 7 días
-/tarea Enviar cotización al forwarder viernes
+/tarea Enviar cotización al forwarder viernes 10am
 /pendientes                      /hecho 3 5
 /gasto 45000 almuerzo #nu        o en texto libre: "gasté 45 mil en almuerzo"
 "tengo 200 mil en nequi y debo 1.5 millones en la TC Rappi"   actualiza varios saldos

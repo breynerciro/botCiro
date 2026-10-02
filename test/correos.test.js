@@ -121,10 +121,12 @@ test('/ignorar agrega el remitente a la lista', () => {
   assert.equal(env.ctx.getConfig_('IGNORAR_REMITENTES'), 'boletines.com, otra.com');
 });
 
-test('Jira: asignaciones nuevas, cierres, /hecho y reasignación', () => {
+test('Jira: solo lo que está en curso, cierres, /hecho y reasignación', () => {
+  const enCurso = { name: 'En curso' };
   let issues = [
-    { key: 'EMP-101', fields: { summary: 'Ajustar liquidación de demurrage', priority: { name: 'High' }, duedate: '2026-10-10' } },
-    { key: 'EMP-102', fields: { summary: 'Revisar parser de BL', priority: { name: 'Medium' }, duedate: null } },
+    { key: 'EMP-101', fields: { summary: 'Ajustar liquidación de demurrage', priority: { name: 'High' }, duedate: '2026-10-10', status: enCurso } },
+    { key: 'EMP-102', fields: { summary: 'Revisar parser de BL', priority: { name: 'Medium' }, duedate: null, status: enCurso } },
+    { key: 'EMP-103', fields: { summary: 'Cotizar flete marítimo', priority: null, duedate: null, status: { name: 'Por hacer' } } },
   ];
   let codigo = 200;
   const env = preparar({ jira: () => ({ codigo, cuerpo: { issues } }) });
@@ -134,8 +136,9 @@ test('Jira: asignaciones nuevas, cierres, /hecho y reasignación', () => {
   env.enviados.length = 0;
   env.ctx.escanearJira();
   assert.match(env.llamadas.jira[0], /^https:\/\/miempresa\.atlassian\.net\/rest\/api\/3\/search\/jql\?jql=assignee%20%3D%20currentUser\(\)/);
-  assert.match(env.avisos(), /🎫 <b>Jira: asignado a ti<\/b>[\s\S]*#1 <a href="https:\/\/miempresa\.atlassian\.net\/browse\/EMP-101">EMP-101<\/a> Ajustar liquidación de demurrage <i>\(High\)<\/i> · vence/);
+  assert.match(env.avisos(), /🎫 <b>Jira: en curso<\/b>[\s\S]*#1 <a href="https:\/\/miempresa\.atlassian\.net\/browse\/EMP-101">EMP-101<\/a> Ajustar liquidación de demurrage <i>\(High\)<\/i> · vence/);
   assert.match(env.decir('/pendientes trabajo'), /#1 EMP-101 · Ajustar liquidación[\s\S]*🎫[\s\S]*#2 EMP-102/);
+  assert.doesNotMatch(env.decir('/pendientes trabajo'), /EMP-103/, '"Por hacer" no es pendiente');
 
   // Segunda pasada sin cambios: nada nuevo.
   env.enviados.length = 0;
@@ -151,12 +154,26 @@ test('Jira: asignaciones nuevas, cierres, /hecho y reasignación', () => {
   issues = issues.filter((i) => i.key !== 'EMP-101');
   env.enviados.length = 0;
   env.ctx.escanearJira();
-  assert.match(env.avisos(), /Cerrados en Jira: #1 EMP-101/);
+  assert.match(env.avisos(), /Ya no están en curso en Jira: #1 EMP-101/);
 
   // EMP-101 se reabre y te lo reasignan → pendiente nuevo.
-  issues.push({ key: 'EMP-101', fields: { summary: 'Ajustar liquidación de demurrage', priority: null, duedate: null } });
+  issues.push({ key: 'EMP-101', fields: { summary: 'Ajustar liquidación de demurrage', priority: null, duedate: null, status: enCurso } });
   env.ctx.escanearJira();
   assert.match(env.decir('/pendientes trabajo'), /#3 EMP-101/);
+
+  // EMP-103 pasa a "In Progress" (Jira en inglés) → pendiente; luego a "En revisión" → se cierra.
+  issues.find((i) => i.key === 'EMP-103').fields.status = { name: 'In Progress' };
+  env.ctx.escanearJira();
+  assert.match(env.decir('/pendientes trabajo'), /#4 EMP-103/);
+  issues.find((i) => i.key === 'EMP-103').fields.status = { name: 'En revisión' };
+  env.enviados.length = 0;
+  env.ctx.escanearJira();
+  assert.match(env.avisos(), /Ya no están en curso en Jira: #4 EMP-103/);
+
+  // Config JIRA_ESTADOS = "todos" → sin filtro de estado.
+  env.ctx.setConfig_('JIRA_ESTADOS', 'todos');
+  env.ctx.escanearJira();
+  assert.match(env.decir('/pendientes trabajo'), /#5 EMP-103/);
 
   // Token vencido: avisa una sola vez.
   codigo = 401;
