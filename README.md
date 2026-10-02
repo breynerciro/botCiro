@@ -20,14 +20,57 @@ Asistente personal en Telegram que reúne en un solo chat **saldos, reuniones y 
 | Informes | `/informe` agrupa tus gastos por categoría (mercado, transporte, salud…) y los compara con el mes anterior. |
 | Salud | `/estado` muestra triggers, errores, cola, tasa USD y sincronizaciones; un watchdog diario te avisa **solo** si algo falla. |
 
-## Instalar (sin terminal, ~10 min)
+## Instalar (sin saber programar, ~15 min)
 
-Cada persona tiene **su propia copia**: su bot, su Google y su hoja. Nadie más ve sus datos, ni siquiera quien le compartió el enlace.
+### 👉 [Abrir la plantilla y hacer una copia](https://docs.google.com/spreadsheets/d/19hycxoiEc7gdt3ZX6P8HvdIsJ--K_m9PETil2GUMEao/copy)
 
-1. **Crea tu bot:** en Telegram abre **@BotFather** → `/newbot` → ponle nombre y copia el **token**.
-2. **Copia la plantilla:** abre el enlace que te compartieron (`…/copy`) con tu Gmail → **Hacer una copia**.
-3. **Instala:** en la hoja nueva, menú **🤖 Asistente → Instalar** → autoriza → pega el token. El diálogo te guía para publicar la app web (4 clics en *Implementar → Nueva implementación → Aplicación web*, con *Ejecutar como: Yo* y *Acceso: Cualquier usuario*) y pegar su URL.
-4. Toca **Abrir en Telegram** → **Iniciar**. El bot queda vinculado solo a tu chat.
+Cada persona tiene **su propia copia**: su bot, su Google y su hoja. Nadie más ve sus datos, ni siquiera el autor de la plantilla.
+
+**Necesitas:**
+- Un **computador** (la instalación no se puede hacer desde el celular).
+- Tu **Gmail personal**.
+- **Telegram** instalado en el celular o el computador.
+
+### Paso 1. Crea tu bot en Telegram (3 min)
+1. En Telegram, busca **@BotFather** (tiene un chulito azul) y ábrelo.
+2. Toca **Iniciar** y escribe `/newbot`.
+3. Te pide un **nombre**: escribe el que quieras, por ejemplo *Asistente de Ana*.
+4. Te pide un **usuario**: tiene que terminar en `bot`, por ejemplo *ana_asistente_bot*. Si dice que ya existe, prueba con otro.
+5. Te responde con un texto que incluye un código parecido a `123456789:AAH...`. Ese es tu **token**: cópialo y tenlo a mano. **No se lo compartas a nadie.**
+
+### Paso 2. Copia la hoja del asistente (1 min)
+1. En el computador, abre el [enlace de la plantilla](https://docs.google.com/spreadsheets/d/19hycxoiEc7gdt3ZX6P8HvdIsJ--K_m9PETil2GUMEao/copy).
+2. Si te lo pide, entra con tu **Gmail personal**.
+3. Toca el botón azul **Hacer una copia**. Se abre tu propia hoja de cálculo.
+4. Espera unos 10 segundos: arriba, junto a "Ayuda", aparece un menú **🤖 Asistente**. Si no aparece, recarga la página.
+
+### Paso 3. Instala (5 min)
+1. Toca **🤖 Asistente → Instalar**.
+2. Google te pide permisos:
+   - Toca **Continuar** y elige tu Gmail.
+   - Si sale **"Google no ha verificado esta aplicación"**, es normal: es tu propia copia. Toca **Configuración avanzada** y luego **Ir a … (no seguro)**.
+   - Toca **Permitir**.
+3. Si no se abre ninguna ventana, toca otra vez **🤖 Asistente → Instalar**.
+4. En la ventana que aparece, pega tu **token** del Paso 1 y toca **Continuar**.
+
+### Paso 4. Publica tu bot (4 min)
+La ventana te muestra estos pasos. **No la cierres**: haz esto en una pestaña nueva.
+1. En la hoja, toca el menú **Extensiones → Apps Script**. Se abre una pestaña nueva.
+2. Arriba a la derecha, toca el botón azul **Implementar → Nueva implementación**.
+3. Toca el engranaje ⚙️ al lado de "Seleccionar tipo" y elige **Aplicación web**.
+4. Llena así:
+   - **Ejecutar como:** Yo
+   - **Quién tiene acceso:** Cualquier usuario
+5. Toca **Implementar**. Si vuelve a pedir permisos, acéptalos igual que en el Paso 3.
+6. Aparece una **URL de la aplicación web** que termina en `/exec`. Toca **Copiar**.
+7. Vuelve a la pestaña de la hoja, pega esa URL en la ventana y toca **Conectar**.
+
+### Paso 5. Abre tu bot (1 min)
+1. Toca **Abrir en Telegram** y luego **Iniciar**.
+2. El bot te saluda por tu nombre. ¡Ya quedó! Solo te responde a ti.
+
+### Paso 6. Configúralo desde Telegram
+Ya puedes escribirle normal: *"compra por nequi 40000"*, *"tarea: pagar el arriendo el viernes"* o `/resumen`.
 
 Lo demás se configura **desde el chat** con `/configurar`:
 
@@ -40,6 +83,11 @@ Lo demás se configura **desde el chat** con `/configurar`:
 | ⏰ Preferencias | Hora del resumen, avisos de reuniones y vencimientos. Al cambiar la hora, el trigger se reprograma solo. |
 
 Si no tienes cuenta de trabajo, el perfil `trabajo` no aparece en ningún lado.
+
+### Si algo sale mal
+- **No aparece el menú 🤖 Asistente:** recarga la hoja y espera unos segundos.
+- **"Ese no parece un token":** cópialo otra vez completo desde @BotFather (`/mybots` → tu bot → *API Token*).
+- **El bot no contesta:** revisa que en el Paso 4 elegiste **Cualquier usuario**. En la hoja, toca **🤖 Asistente → Estado del bot**.
 
 ### Actualizar
 Cuando hay una versión nueva, el bot te avisa **una vez** con los pasos (2 min, se conservan tus datos y tu configuración). También puedes revisar con `/actualizar` o con el menú **🤖 Asistente → Buscar actualización**:
@@ -56,7 +104,7 @@ Una sola vez, con `clasp login` en tu cuenta personal:
 ```bash
 npm run biblioteca:crear       # proyecto "BotCiro (biblioteca)"; compártelo como Lector (cualquiera con el enlace)
 npm run biblioteca:publicar    # tests → build → nueva versión → actualiza la plantilla
-npm run plantilla:crear        # hoja plantilla con su script; comparte .../copy
+npm run plantilla:crear        # hoja plantilla con su script; comparte el enlace .../copy de arriba
 npm run satelite:plantilla     # hoja plantilla del satélite (opcional)
 ```
 Los IDs quedan en `biblioteca.json`. En cada versión nueva: sube `VERSION` y `NOTAS_VERSION_` (`src/Version.js`, `src/Actualizar.js`), corre `npm run biblioteca:publicar` y ejecuta `anunciarVersion()` en el editor de la biblioteca para que las copias reciban el aviso.
@@ -211,6 +259,7 @@ npm run push      # sube cambios a Apps Script
 ```
 En GitHub Actions (`.github/workflows/test.yml`) corren `npm run check` y `npm test` en cada push y PR.
 `npm run push` solo actualiza el código del editor. Para que el bot use los cambios, ejecuta `npm run deploy`: crea una nueva versión sobre la misma implementación, así que la URL `/exec` y el webhook no cambian.
+`npm run deploy` lee el ID de tu implementación del archivo local `.deployment-id`, que no se sube a git. Créalo una vez con el ID que muestra `clasp deployments`, el que termina en `@N` de tu app web, sin el `@N`.
 
 > **Actualizaciones que cambian permisos:** el bot solo pide `gmail.readonly` (antes era Gmail completo). Si ya lo tenías instalado, vuelve a ejecutar `setup()` y acepta los permisos nuevos.
 
